@@ -1539,7 +1539,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: c22777d6e868e4f2fb421913386b154e, type: 2}
+  - {fileID: 2100000, guid: 5aa64abd8a13fc046af849c2452a705a, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2590,6 +2590,32 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 5bd88b79673104a4e97a367948d8ed6d, type: 3}
+--- !u!1 &524487440 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3771293372326364267, guid: 17fe05e86733dc84fa6db2829cc33eb1, type: 3}
+  m_PrefabInstance: {fileID: 1060152572}
+  m_PrefabAsset: {fileID: 0}
+--- !u!65 &524487444
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 524487440}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 4, y: 2.0810823, z: 0.29963744}
+  m_Center: {x: -2, y: 1.0405412, z: -0.0012904108}
 --- !u!1001 &527514659
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4683,7 +4709,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 3771293372326364267, guid: 17fe05e86733dc84fa6db2829cc33eb1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 524487444}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: 17fe05e86733dc84fa6db2829cc33eb1, type: 3}
 --- !u!1 &1069450098 stripped
 GameObject:
@@ -5197,12 +5226,12 @@ MonoBehaviour:
   controller: {fileID: 0}
   jumpForce: 5
   gravity: -9.81
-  groundCheck: {fileID: 0}
+  groundCheck: {fileID: 1457062357}
   groundDistance: 0.2
   groundLayer:
     serializedVersion: 2
     m_Bits: 0
-  mainCamera: {fileID: 0}
+  mainCamera: {fileID: 648834345}
   bobSpeed: 8
   bobAmount: 0.1
 --- !u!1001 &1210232408
@@ -6635,6 +6664,12 @@ PrefabInstance:
     - {fileID: 5895688994531651863, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
     - {fileID: 7382756760959734043, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
     - {fileID: -221456040266579729, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
+    - {fileID: -3798462058070223893, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
+    - {fileID: 3248779556974655075, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
+    - {fileID: 6747593860801402671, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
+    - {fileID: -2677925298427086326, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
+    - {fileID: 2818047389763653531, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
+    - {fileID: -9065030342628205687, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 6475036041665708925, guid: 0127605944ef5234799e63d0f673dc75, type: 3}
