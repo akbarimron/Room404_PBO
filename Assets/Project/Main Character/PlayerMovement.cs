@@ -11,6 +11,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("UI Reference")]
     [SerializeField] private Slider staminaBar;
+    [SerializeField] private SettingsUI settingsUI;
 
     [Header("Stamina Settings")]
     [SerializeField] private float maxStamina = 100f;
@@ -42,10 +43,11 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 cameraOriginalPos;
     private float bobTimer = 0f;
     private bool isMoving = false;
+    private bool canMove = true;
 
     void Start()
     {
-        currentStamina = maxStamina; // Inisialisasi stamina penuh
+        currentStamina = maxStamina;
 
         if (controller == null)
             controller = GetComponent<CharacterController>();
@@ -66,6 +68,21 @@ public class PlayerMovement : MonoBehaviour
             groundCheckObj.transform.parent = transform;
             groundCheckObj.transform.localPosition = new Vector3(0, -1f, 0);
             groundCheck = groundCheckObj.transform;
+        }
+
+        if (settingsUI == null)
+            settingsUI = FindObjectOfType<SettingsUI>();
+
+        if (settingsUI == null)
+            Debug.LogWarning("SettingsUI not found!");
+
+        if (SettingsManager.Instance != null)
+        {
+            var settings = SettingsManager.Instance.GetSettings();
+            walkSpeed = settings.walkSpeed;
+            sprintSpeed = settings.sprintSpeed;
+            bobSpeed = settings.bobSpeed;
+            bobAmount = settings.bobAmount;
         }
     }
 
@@ -107,6 +124,11 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleInputAndMovement()
     {
+        canMove = (settingsUI == null || !settingsUI.IsSettingsOpen());
+
+        if (!canMove)
+            return;
+
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
 
