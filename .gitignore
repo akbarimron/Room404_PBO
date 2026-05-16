@@ -70,6 +70,21 @@ crashlytics-build.properties
 .vscode/
 *.slnx
 
+# IDE cache files
+*.lscache
+
+# Cache files
+.cache/
+*.cache
+
+# OS specific files
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Large asset files/folders (uncomment as needed)
+/Assets/MODULAR ASSET/
+
 # Exceptions to above rules
 !*.dll
 !*.obj
