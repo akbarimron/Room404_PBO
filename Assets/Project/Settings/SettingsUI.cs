@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using UnityEngine.InputSystem;
 
 public class SettingsUI : MonoBehaviour
 {
@@ -35,10 +34,14 @@ public class SettingsUI : MonoBehaviour
     [SerializeField] private Slider bobAmountSlider;
     [SerializeField] private TextMeshProUGUI bobAmountText;
 
+    void Awake()
+    {
+        ResolveSettingsPanel();
+    }
+
     void Start()
     {
-        if (settingsPanel == null)
-            settingsPanel = gameObject;
+        RegisterSettingsUI();
 
         settingsToggleButton?.onClick.AddListener(OpenSettings);
         closeButton?.onClick.AddListener(CloseSettings);
@@ -50,39 +53,15 @@ public class SettingsUI : MonoBehaviour
         settingsPanel.SetActive(false);
     }
 
-    void Update()
+    void OnEnable()
     {
-        try
-        {
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-            {
-                Debug.LogWarning("Keyboard is NULL");
-                return;
-            }
+        RegisterSettingsUI();
+    }
 
-            var escapeKey = keyboard.escapeKey;
-            if (escapeKey == null)
-            {
-                Debug.LogWarning("Escape key is NULL");
-                return;
-            }
-
-            bool pressed = escapeKey.wasPressedThisFrame;
-            Debug.Log("Escape pressed: " + pressed);
-
-            if (pressed)
-            {
-                if (settingsPanel.activeSelf)
-                    CloseSettings();
-                else
-                    OpenSettings();
-            }
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError("Update error: " + ex.Message);
-        }
+    private void RegisterSettingsUI()
+    {
+        if (SettingsManager.Instance != null)
+            SettingsManager.Instance.RegisterSettingsUI(this);
     }
 
     private void SetupSliders()
@@ -139,79 +118,94 @@ public class SettingsUI : MonoBehaviour
         if (bobAmountSlider != null)
         {
             bobAmountSlider.minValue = 0f;
-            bobAmountSlider.maxValue = 0.1f;
+            bobAmountSlider.maxValue = 1f;
             bobAmountSlider.onValueChanged.AddListener(OnBobAmountChanged);
         }
     }
 
     private void LoadCurrentSettings()
     {
+        if (SettingsManager.Instance == null)
+            return;
+
         var settings = SettingsManager.Instance.GetSettings();
 
-        if (mouseSensitivitySlider != null) mouseSensitivitySlider.value = settings.mouseSensitivity;
-        if (masterVolumeSlider != null) masterVolumeSlider.value = settings.masterVolume;
-        if (musicVolumeSlider != null) musicVolumeSlider.value = settings.musicVolume;
-        if (sfxVolumeSlider != null) sfxVolumeSlider.value = settings.sfxVolume;
-        if (walkSpeedSlider != null) walkSpeedSlider.value = settings.walkSpeed;
-        if (sprintSpeedSlider != null) sprintSpeedSlider.value = settings.sprintSpeed;
-        if (bobSpeedSlider != null) bobSpeedSlider.value = settings.bobSpeed;
-        if (bobAmountSlider != null) bobAmountSlider.value = settings.bobAmount;
+        if (mouseSensitivitySlider != null) mouseSensitivitySlider.SetValueWithoutNotify(settings.mouseSensitivity);
+        if (masterVolumeSlider != null) masterVolumeSlider.SetValueWithoutNotify(settings.masterVolume);
+        if (musicVolumeSlider != null) musicVolumeSlider.SetValueWithoutNotify(settings.musicVolume);
+        if (sfxVolumeSlider != null) sfxVolumeSlider.SetValueWithoutNotify(settings.sfxVolume);
+        if (walkSpeedSlider != null) walkSpeedSlider.SetValueWithoutNotify(settings.walkSpeed);
+        if (sprintSpeedSlider != null) sprintSpeedSlider.SetValueWithoutNotify(settings.sprintSpeed);
+        if (bobSpeedSlider != null) bobSpeedSlider.SetValueWithoutNotify(settings.bobSpeed);
+        if (bobAmountSlider != null) bobAmountSlider.SetValueWithoutNotify(settings.bobAmount);
+
+        UpdateMouseSensitivityText(settings.mouseSensitivity);
+        UpdateMasterVolumeText(settings.masterVolume);
+        UpdateMusicVolumeText(settings.musicVolume);
+        UpdateSFXVolumeText(settings.sfxVolume);
+        UpdateWalkSpeedText(settings.walkSpeed);
+        UpdateSprintSpeedText(settings.sprintSpeed);
+        UpdateBobSpeedText(settings.bobSpeed);
+        UpdateBobAmountText(settings.bobAmount);
     }
 
     private void OnMouseSensitivityChanged(float value)
     {
         SettingsManager.Instance.SetMouseSensitivity(value);
-        if (mouseSensitivityText != null)
-            mouseSensitivityText.text = value.ToString("F1");
+        UpdateMouseSensitivityText(SettingsManager.Instance.GetMouseSensitivity());
     }
 
     private void OnMasterVolumeChanged(float value)
     {
         SettingsManager.Instance.SetMasterVolume(value);
-        if (masterVolumeText != null)
-            masterVolumeText.text = (value * 100).ToString("F0") + "%";
+        UpdateMasterVolumeText(SettingsManager.Instance.GetMasterVolume());
     }
 
     private void OnMusicVolumeChanged(float value)
     {
         SettingsManager.Instance.SetMusicVolume(value);
-        if (musicVolumeText != null)
-            musicVolumeText.text = (value * 100).ToString("F0") + "%";
+        UpdateMusicVolumeText(SettingsManager.Instance.GetMusicVolume());
     }
 
     private void OnSFXVolumeChanged(float value)
     {
         SettingsManager.Instance.SetSFXVolume(value);
-        if (sfxVolumeText != null)
-            sfxVolumeText.text = (value * 100).ToString("F0") + "%";
+        UpdateSFXVolumeText(SettingsManager.Instance.GetSFXVolume());
     }
 
     private void OnWalkSpeedChanged(float value)
     {
         SettingsManager.Instance.SetWalkSpeed(value);
-        if (walkSpeedText != null)
-            walkSpeedText.text = value.ToString("F1");
+        float appliedWalkSpeed = SettingsManager.Instance.GetWalkSpeed();
+        float appliedSprintSpeed = SettingsManager.Instance.GetSprintSpeed();
+
+        UpdateWalkSpeedText(appliedWalkSpeed);
+        UpdateSprintSpeedText(appliedSprintSpeed);
+
+        if (sprintSpeedSlider != null)
+            sprintSpeedSlider.SetValueWithoutNotify(appliedSprintSpeed);
     }
 
     private void OnSprintSpeedChanged(float value)
     {
         SettingsManager.Instance.SetSprintSpeed(value);
-        if (sprintSpeedText != null)
-            sprintSpeedText.text = value.ToString("F1");
+        float appliedSprintSpeed = SettingsManager.Instance.GetSprintSpeed();
+        UpdateSprintSpeedText(appliedSprintSpeed);
+
+        if (sprintSpeedSlider != null)
+            sprintSpeedSlider.SetValueWithoutNotify(appliedSprintSpeed);
     }
 
     private void OnBobSpeedChanged(float value)
     {
         SettingsManager.Instance.SetBobSpeed(value);
-        if (bobSpeedText != null)
-            bobSpeedText.text = value.ToString("F1");
+        UpdateBobSpeedText(SettingsManager.Instance.GetBobSpeed());
     }
 
     private void OnBobAmountChanged(float value)
     {
         SettingsManager.Instance.SetBobAmount(value);
-        if (bobAmountText != null)
-            bobAmountText.text = value.ToString("F2");
+        UpdateBobAmountText(SettingsManager.Instance.GetBobAmount());
     }
 
     private void SaveSettings()
@@ -230,20 +224,86 @@ public class SettingsUI : MonoBehaviour
 
     public void OpenSettings()
     {
+        ResolveSettingsPanel();
         settingsPanel.SetActive(true);
         LoadCurrentSettings();
         Time.timeScale = 0f;
     }
 
-    private void CloseSettings()
+    public void CloseSettings()
     {
+        ResolveSettingsPanel();
         SaveSettings();
         settingsPanel.SetActive(false);
         Time.timeScale = 1f;
     }
 
+    public void ToggleSettings()
+    {
+        ResolveSettingsPanel();
+        if (settingsPanel.activeSelf)
+            CloseSettings();
+        else
+            OpenSettings();
+    }
+
     public bool IsSettingsOpen()
     {
+        ResolveSettingsPanel();
         return settingsPanel.activeSelf;
+    }
+
+    private void ResolveSettingsPanel()
+    {
+        if (settingsPanel == null)
+            settingsPanel = gameObject;
+    }
+
+    private void UpdateMouseSensitivityText(float value)
+    {
+        if (mouseSensitivityText != null)
+            mouseSensitivityText.text = value.ToString("F1");
+    }
+
+    private void UpdateMasterVolumeText(float value)
+    {
+        if (masterVolumeText != null)
+            masterVolumeText.text = (value * 100).ToString("F0") + "%";
+    }
+
+    private void UpdateMusicVolumeText(float value)
+    {
+        if (musicVolumeText != null)
+            musicVolumeText.text = (value * 100).ToString("F0") + "%";
+    }
+
+    private void UpdateSFXVolumeText(float value)
+    {
+        if (sfxVolumeText != null)
+            sfxVolumeText.text = (value * 100).ToString("F0") + "%";
+    }
+
+    private void UpdateWalkSpeedText(float value)
+    {
+        if (walkSpeedText != null)
+            walkSpeedText.text = value.ToString("F1");
+    }
+
+    private void UpdateSprintSpeedText(float value)
+    {
+        if (sprintSpeedText != null)
+            sprintSpeedText.text = value.ToString("F1");
+    }
+
+    private void UpdateBobSpeedText(float value)
+    {
+        if (bobSpeedText != null)
+            bobSpeedText.text = value.ToString("F1");
+    }
+
+    private void UpdateBobAmountText(float value)
+    {
+        if (bobAmountText != null)
+            bobAmountText.text = value.ToString("F2");
     }
 }

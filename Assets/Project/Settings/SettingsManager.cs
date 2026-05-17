@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class SettingsManager : MonoBehaviour
 {
@@ -18,6 +19,7 @@ public class SettingsManager : MonoBehaviour
     }
 
     private GameSettings settings;
+    private SettingsUI settingsUI;
     private const string SETTINGS_KEY = "GameSettings";
 
     void Awake()
@@ -33,6 +35,16 @@ public class SettingsManager : MonoBehaviour
         LoadSettings();
     }
 
+    void Update()
+    {
+        if (Keyboard.current?.escapeKey.wasPressedThisFrame != true)
+            return;
+
+        SettingsUI ui = GetSettingsUI();
+        if (ui != null)
+            ui.ToggleSettings();
+    }
+
     public void LoadSettings()
     {
         string json = PlayerPrefs.GetString(SETTINGS_KEY, "");
@@ -44,16 +56,59 @@ public class SettingsManager : MonoBehaviour
         {
             settings = JsonUtility.FromJson<GameSettings>(json);
         }
+
+        if (settings == null)
+            settings = new GameSettings();
+
+        ValidateSettings();
+        ApplySettings();
     }
 
     public void SaveSettings()
     {
+        ValidateSettings();
+        ApplySettings();
         string json = JsonUtility.ToJson(settings);
         PlayerPrefs.SetString(SETTINGS_KEY, json);
         PlayerPrefs.Save();
     }
 
     public GameSettings GetSettings() => settings;
+
+    public void RegisterSettingsUI(SettingsUI ui)
+    {
+        if (ui != null)
+            settingsUI = ui;
+    }
+
+    public bool IsSettingsOpen()
+    {
+        SettingsUI ui = GetSettingsUI();
+        return ui != null && ui.IsSettingsOpen();
+    }
+
+    public void ApplySettings()
+    {
+        if (settings == null)
+            return;
+
+        AudioListener.volume = settings.masterVolume;
+    }
+
+    private void ValidateSettings()
+    {
+        if (settings == null)
+            settings = new GameSettings();
+
+        settings.mouseSensitivity = Mathf.Clamp(settings.mouseSensitivity, 0.1f, 20f);
+        settings.masterVolume = Mathf.Clamp01(settings.masterVolume);
+        settings.musicVolume = Mathf.Clamp01(settings.musicVolume);
+        settings.sfxVolume = Mathf.Clamp01(settings.sfxVolume);
+        settings.walkSpeed = Mathf.Max(1f, settings.walkSpeed);
+        settings.sprintSpeed = Mathf.Max(settings.walkSpeed + 1f, settings.sprintSpeed);
+        settings.bobSpeed = Mathf.Max(0.1f, settings.bobSpeed);
+        settings.bobAmount = Mathf.Clamp(settings.bobAmount, 0f, 1f);
+    }
 
     public void SetMouseSensitivity(float value)
     {
@@ -63,12 +118,16 @@ public class SettingsManager : MonoBehaviour
     public void SetMasterVolume(float value)
     {
         settings.masterVolume = Mathf.Clamp01(value);
-        AudioListener.volume = settings.masterVolume;
+        ApplySettings();
     }
 
     public void SetMusicVolume(float value) => settings.musicVolume = Mathf.Clamp01(value);
     public void SetSFXVolume(float value) => settings.sfxVolume = Mathf.Clamp01(value);
-    public void SetWalkSpeed(float value) => settings.walkSpeed = Mathf.Max(1f, value);
+    public void SetWalkSpeed(float value)
+    {
+        settings.walkSpeed = Mathf.Max(1f, value);
+        settings.sprintSpeed = Mathf.Max(settings.walkSpeed + 1f, settings.sprintSpeed);
+    }
     public void SetSprintSpeed(float value) => settings.sprintSpeed = Mathf.Max(settings.walkSpeed + 1f, value);
     public void SetBobSpeed(float value) => settings.bobSpeed = Mathf.Max(0.1f, value);
     public void SetBobAmount(float value) => settings.bobAmount = Mathf.Clamp(value, 0f, 1f);
@@ -81,4 +140,16 @@ public class SettingsManager : MonoBehaviour
     public float GetSprintSpeed() => settings.sprintSpeed;
     public float GetBobSpeed() => settings.bobSpeed;
     public float GetBobAmount() => settings.bobAmount;
+
+    private SettingsUI GetSettingsUI()
+    {
+        if (settingsUI != null)
+            return settingsUI;
+
+        SettingsUI[] foundSettingsUis = FindObjectsByType<SettingsUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        if (foundSettingsUis.Length > 0)
+            settingsUI = foundSettingsUis[0];
+
+        return settingsUI;
+    }
 }

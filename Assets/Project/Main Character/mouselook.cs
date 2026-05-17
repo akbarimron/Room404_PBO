@@ -20,7 +20,7 @@ public class mouselook : MonoBehaviour
     {
         ResolvePlayerBody();
         if (settingsUI == null)
-            settingsUI = FindObjectOfType<SettingsUI>();
+            settingsUI = FindSettingsUI();
     }
 
     private void ResolvePlayerBody()
@@ -45,7 +45,7 @@ public class mouselook : MonoBehaviour
 
     void Update()
     {
-        if (settingsUI != null && settingsUI.IsSettingsOpen())
+        if (IsSettingsOpen())
             return;
 
         ResolvePlayerBody();
@@ -79,5 +79,22 @@ public class mouselook : MonoBehaviour
             // Rotate player body left/right (mouse)
             playerBody.Rotate(Vector3.up * mouseX);
         }
+    }
+
+    private bool IsSettingsOpen()
+    {
+        if (settingsUI == null)
+            settingsUI = FindSettingsUI();
+
+        if (settingsUI != null)
+            return settingsUI.IsSettingsOpen();
+
+        return SettingsManager.Instance != null && SettingsManager.Instance.IsSettingsOpen();
+    }
+
+    private SettingsUI FindSettingsUI()
+    {
+        SettingsUI[] foundSettingsUis = FindObjectsByType<SettingsUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        return foundSettingsUis.Length > 0 ? foundSettingsUis[0] : null;
     }
 }

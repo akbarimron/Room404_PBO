@@ -84,6 +84,7 @@ Thumbs.db
 
 # Large asset files/folders (uncomment as needed)
 /Assets/MODULAR ASSET/
+/Assets/NewAssets/
 
 # Exceptions to above rules
 !*.dll

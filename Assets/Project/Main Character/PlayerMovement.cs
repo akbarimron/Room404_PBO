@@ -71,7 +71,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         if (settingsUI == null)
-            settingsUI = FindObjectOfType<SettingsUI>();
+            settingsUI = FindSettingsUI();
 
         if (settingsUI == null)
             Debug.LogWarning("SettingsUI not found!");
@@ -88,11 +88,24 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
+        ApplyRuntimeSettings();
         HandleGroundCheck();
         HandleInputAndMovement();
         HandleStamina();
         UpdateCameraBob();
         UpdateUI();
+    }
+
+    void ApplyRuntimeSettings()
+    {
+        if (SettingsManager.Instance == null)
+            return;
+
+        var settings = SettingsManager.Instance.GetSettings();
+        walkSpeed = settings.walkSpeed;
+        sprintSpeed = settings.sprintSpeed;
+        bobSpeed = settings.bobSpeed;
+        bobAmount = settings.bobAmount;
     }
 
     void UpdateUI()
@@ -124,7 +137,7 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleInputAndMovement()
     {
-        canMove = (settingsUI == null || !settingsUI.IsSettingsOpen());
+        canMove = !IsSettingsOpen();
 
         if (!canMove)
             return;
@@ -158,6 +171,23 @@ public class PlayerMovement : MonoBehaviour
         move.y = velocity.y;
 
         controller.Move(move * Time.deltaTime);
+    }
+
+    private bool IsSettingsOpen()
+    {
+        if (settingsUI == null)
+            settingsUI = FindSettingsUI();
+
+        if (settingsUI != null)
+            return settingsUI.IsSettingsOpen();
+
+        return SettingsManager.Instance != null && SettingsManager.Instance.IsSettingsOpen();
+    }
+
+    private SettingsUI FindSettingsUI()
+    {
+        SettingsUI[] foundSettingsUis = FindObjectsByType<SettingsUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        return foundSettingsUis.Length > 0 ? foundSettingsUis[0] : null;
     }
 
     void HandleStamina()
