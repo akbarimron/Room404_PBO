@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 public class PlayerHealth : MonoBehaviour
 {
@@ -10,23 +11,30 @@ public class PlayerHealth : MonoBehaviour
     private bool isDead = false;
 
     [Header("Respawn Settings")]
-    // Koordinat yang kamu minta
     private Vector3 spawnPoint = new Vector3(28.5f, 0.36f, -27.78f);
+    [SerializeField] private string deathSceneName = "deathScene";
 
     [Header("UI Reference")]
     public Image[] hearts;
-    public GameObject deathScreen; // Opsional: Panel Game Over
+
+    [Header("Dramatic Effects Settings")]
+    [SerializeField] private float shakeDuration = 0.5f; // Durasi kamera goyang
+    [SerializeField] private float shakeMagnitude = 0.2f; // Kekuatan goyangan kamera
+    private CameraShake cameraShake; // Referensi ke script shake
 
     private CharacterController controller;
+    private PlayerMovement playerMovement; // Tambahan dari perbaikan sebelumnya
 
     void Start()
     {
         currentHealth = maxHealth;
         controller = GetComponent<CharacterController>();
-        UpdateHealthUI();
+        playerMovement = GetComponent<PlayerMovement>();
 
-        // Jika ingin otomatis mengambil posisi awal saat game dimulai:
-        // spawnPoint = transform.position; 
+        // Otomatis mencari script CameraShake di Main Camera milik Player
+        cameraShake = GetComponentInChildren<CameraShake>();
+
+        UpdateHealthUI();
     }
 
     public void TakeDamage(int damage)
@@ -56,37 +64,37 @@ public class PlayerHealth : MonoBehaviour
         isDead = true;
         Debug.Log("Player Mati!");
 
-        // 1. Matikan kontrol gerakan segera agar player tidak bisa jalan saat mati
+        // MEMBUAT GAME JADI SLOW MOTION (Waktu berjalan 30% dari normal)
+        Time.timeScale = 0.3f;
+
+        if (cameraShake != null)
+        {
+            cameraShake.Shake(shakeDuration, shakeMagnitude);
+        }
+
         if (controller != null) controller.enabled = false;
+        if (playerMovement != null) playerMovement.enabled = false;
 
-        // 2. Tampilkan UI Death
-        if (deathScreen != null) deathScreen.SetActive(true);
-
-        // 3. Jalankan proses tunggu dan respawn
+        SceneManager.LoadScene(deathSceneName, LoadSceneMode.Additive);
         StartCoroutine(RespawnProcess());
     }
 
     IEnumerator RespawnProcess()
     {
-        yield return new WaitForSeconds(5f);
+        yield return new WaitForSecondsRealtime(4f);
+        Time.timeScale = 1.0f;
+        SceneManager.UnloadSceneAsync(deathSceneName);
 
-        // Pindahkan posisi ke spawn point
         transform.position = spawnPoint;
-
-        // Tunggu satu frame agar Unity sinkron dengan posisi baru
         yield return null;
 
-        // Reset status kesehatan
         currentHealth = maxHealth;
         isDead = false;
         UpdateHealthUI();
 
-        // Sembunyikan kembali UI Death
-        if (deathScreen != null) deathScreen.SetActive(false);
-
-        // 4. Nyalakan kembali kontrol gerakan setelah 5 detik berlalu
         if (controller != null) controller.enabled = true;
+        if (playerMovement != null) playerMovement.enabled = true;
 
-        Debug.Log("Player telah Respawn dan bisa bergerak kembali!");
+        Debug.Log("Player telah Respawn!");
     }
 }
