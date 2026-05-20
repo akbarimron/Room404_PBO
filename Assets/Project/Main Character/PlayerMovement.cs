@@ -256,4 +256,21 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.DrawWireSphere(groundCheck.position, groundDistance);
         }
     }
+
+    // Tambahkan fungsi publik ini di bagian paling bawah script PlayerMovement.cs
+    public void IncreaseStamina(float amount)
+    {
+        currentStamina += amount;
+        
+        // Batasi agar tidak melebihi kapasitas maksimal stamina
+        currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        
+        // Jika stamina bertambah melampaui batas minimal lari, matikan status exhausted
+        if (isExhausted && currentStamina >= minStaminaToSprint)
+        {
+            isExhausted = false;
+        }
+
+        Debug.Log("Minuman dikonsumsi! Stamina saat ini: " + Mathf.RoundToInt(currentStamina));
+    }
 }
