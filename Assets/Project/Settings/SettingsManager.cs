@@ -3,7 +3,38 @@ using UnityEngine.InputSystem;
 
 public class SettingsManager : MonoBehaviour
 {
-    public static SettingsManager Instance { get; private set; }
+    private static SettingsManager _instance;
+    public static SettingsManager Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                SettingsManager[] all = FindObjectsByType<SettingsManager>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                foreach (var sm in all)
+                {
+                    if (sm != null)
+                    {
+                        _instance = sm;
+                        break;
+                    }
+                }
+
+                if (_instance == null)
+                {
+                    GameObject go = new GameObject("SettingsManager");
+                    _instance = go.AddComponent<SettingsManager>();
+                }
+            }
+
+            if (_instance != null && _instance.gameObject != null && !_instance.gameObject.activeSelf)
+            {
+                _instance.gameObject.SetActive(true);
+            }
+
+            return _instance;
+        }
+    }
 
     [System.Serializable]
     public class GameSettings
@@ -24,19 +55,32 @@ public class SettingsManager : MonoBehaviour
 
     void Awake()
     {
-        if (Instance != null && Instance != this)
+        if (_instance == null)
         {
-            Destroy(gameObject);
-            return;
+            _instance = this;
+            DontDestroyOnLoad(gameObject);
+            LoadSettings();
         }
-        Instance = this;
-        DontDestroyOnLoad(gameObject);
-
-        LoadSettings();
+        else if (_instance != this)
+        {
+            if (_instance.gameObject != null)
+            {
+                Destroy(gameObject);
+            }
+            else
+            {
+                _instance = this;
+                DontDestroyOnLoad(gameObject);
+                LoadSettings();
+            }
+        }
     }
 
     void Update()
     {
+        if (Instance != this)
+            return;
+
         if (Keyboard.current?.escapeKey.wasPressedThisFrame != true)
             return;
 

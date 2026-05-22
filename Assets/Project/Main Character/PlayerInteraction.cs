@@ -5,13 +5,17 @@ public class PlayerInteraction : MonoBehaviour
 {
     [Header("Interaction Settings")]
     [SerializeField] private float interactRange = 3f; 
+    [SerializeField] private float doorInteractRadius = 2.2f;
     [SerializeField] private LayerMask interactableLayer; 
 
     private InventoryManager inventory;
     private ItemPickup currentItem;
+    private InteractiveDoor currentDoor;
+    private LockerController currentLocker;
 
     void Start()
     {
+        Debug.Log("<color=green>[PlayerInteraction]</color> Script started on " + gameObject.name);
         // Mencari InventoryManager di objek induk (First Person Player)
         inventory = GetComponentInParent<InventoryManager>();
 
@@ -21,23 +25,72 @@ public class PlayerInteraction : MonoBehaviour
         }
     }
 
-   void Update()
+    void Update()
     {
+        // Skip interaction processing if the player is currently hiding
+        PlayerMovement pm = GetComponentInParent<PlayerMovement>();
+        if (pm != null)
+        {
+            PlayerHealth health = pm.GetComponent<PlayerHealth>();
+            if (health != null && health.isHiding)
+            {
+                return;
+            }
+        }
+
         Ray ray = new Ray(transform.position, transform.forward);
         RaycastHit hit;
 
-        // Tembakkan laser ke depan
-        if (Physics.Raycast(ray, out hit, interactRange, interactableLayer))
+        // Tembakkan spherecast ke depan untuk interaksi yang lebih nyaman.
+        if (TryGetInteractionHit(ray, out hit))
         {
-            ItemPickup item = hit.collider.GetComponent<ItemPickup>();
+            InteractiveDoor door = hit.collider.GetComponentInParent<InteractiveDoor>();
+            if (door != null)
+            {
+                currentItem = null;
+                currentLocker = null;
+                currentDoor = door;
+                ShowInteractionText(currentDoor.Prompt);
+
+                Keyboard keyboard = Keyboard.current;
+                if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
+                    currentDoor.Toggle(transform);
+
+                return;
+            }
+
+            LockerController locker = hit.collider.GetComponentInParent<LockerController>();
+            if (locker != null)
+            {
+                currentItem = null;
+                currentDoor = null;
+                currentLocker = locker;
+                ShowInteractionText(currentLocker.Prompt);
+
+                Keyboard keyboard = Keyboard.current;
+                if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
+                {
+                    if (pm != null)
+                    {
+                        currentLocker.ToggleHiding(pm.gameObject);
+                    }
+                }
+
+                return;
+            }
+
+            ItemPickup item = hit.collider.GetComponentInParent<ItemPickup>();
 
             if (item != null)
             {
+                currentDoor = null;
+                currentLocker = null;
+
                 // Jika baru melihat item ini, munculkan teks UI
                 if (currentItem != item)
                 {
                     currentItem = item;
-                    InteractionUI.Instance.ShowText($"Tekan [E] untuk mengambil {currentItem.itemName}");
+                    ShowInteractionText($"Press [E] to pick up {currentItem.itemName}");
                 }
 
                 // --- SISTEM DETEKSI INPUT YANG LEBIH AGRESIF ---
@@ -59,7 +112,7 @@ public class PlayerInteraction : MonoBehaviour
 
                             if (successfullyAdded)
                             {
-                                InteractionUI.Instance.HideText();
+                                HideInteractionText();
                                 Destroy(currentItem.gameObject);
                                 currentItem = null;
                             }
@@ -71,17 +124,78 @@ public class PlayerInteraction : MonoBehaviour
                         }
                     }
                 }
+
+                return;
             }
+        }
+
+        if (currentItem != null || currentDoor != null || currentLocker != null)
+        {
+            // Jika melihat ke arah lain, bersihkan target
+            HideInteractionText();
+            currentItem = null;
+            currentDoor = null;
+            currentLocker = null;
+        }
+    }
+
+    private bool TryGetInteractionHit(Ray ray, out RaycastHit hit)
+    {
+        float castRadius = 0.25f;
+        RaycastHit[] hits;
+
+        if (interactableLayer.value != 0)
+        {
+            hits = Physics.SphereCastAll(ray.origin, castRadius, ray.direction, interactRange, interactableLayer, QueryTriggerInteraction.Collide);
+            if (FindClosestValidHit(hits, out hit))
+                return true;
+        }
+
+        hits = Physics.SphereCastAll(ray.origin, castRadius, ray.direction, interactRange, Physics.AllLayers, QueryTriggerInteraction.Collide);
+        return FindClosestValidHit(hits, out hit);
+    }
+
+    private bool FindClosestValidHit(RaycastHit[] hits, out RaycastHit closestHit)
+    {
+        closestHit = new RaycastHit();
+        float closestDistance = float.MaxValue;
+        bool found = false;
+
+        foreach (var h in hits)
+        {
+            // Ignore colliders on the player itself
+            if (h.collider.transform.root == transform.root)
+                continue;
+
+            if (h.distance < closestDistance)
+            {
+                closestDistance = h.distance;
+                closestHit = h;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private void ShowInteractionText(string message)
+    {
+        InteractionUI ui = InteractionUI.Instance;
+        if (ui != null)
+        {
+            ui.ShowText(message);
         }
         else
         {
-            // Jika melihat ke arah lain, bersihkan target
-            if (currentItem != null)
-            {
-                InteractionUI.Instance.HideText();
-                currentItem = null;
-            }
+            Debug.LogWarning("InteractionUI.Instance is NULL! Cannot show prompt: " + message);
         }
+    }
+
+    private void HideInteractionText()
+    {
+        InteractionUI ui = InteractionUI.Instance;
+        if (ui != null)
+            ui.HideText();
     }
 
     void OnDrawGizmos()

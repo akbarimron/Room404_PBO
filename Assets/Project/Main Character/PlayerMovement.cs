@@ -32,6 +32,15 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float groundDistance = 0.2f;
     [SerializeField] private LayerMask groundLayer;
 
+    [Header("Stairs")]
+    [SerializeField] private float stairStepOffset = 0.5f;
+    [SerializeField] private float stairSlopeLimit = 50f;
+    [SerializeField] private float stairAssistSpeed = 0f;
+    [SerializeField] private float stairStickToGroundForce = 8f;
+    [SerializeField] private float stairContactGraceTime = 0.2f;
+    [SerializeField] private LayerMask stairLayer;
+    [SerializeField] private string[] stairNameKeywords = { "tangga", "stairs", "stair" };
+
     [Header("Camera Bobbing")]
     [SerializeField] private Transform mainCamera;
     [SerializeField] private float bobSpeed = 8f;
@@ -44,13 +53,23 @@ public class PlayerMovement : MonoBehaviour
     private float bobTimer = 0f;
     private bool isMoving = false;
     private bool canMove = true;
+    private Collider activeStair;
+    private float lastStairContactTime = -1f;
 
     void Start()
     {
         currentStamina = maxStamina;
+        gravity = -25f;
+        stairStickToGroundForce = 20f;
 
         if (controller == null)
             controller = GetComponent<CharacterController>();
+
+        if (controller != null)
+        {
+            controller.stepOffset = Mathf.Max(controller.stepOffset, stairStepOffset);
+            controller.slopeLimit = Mathf.Max(controller.slopeLimit, stairSlopeLimit);
+        }
 
         if (mainCamera == null)
         {
@@ -110,17 +129,18 @@ public class PlayerMovement : MonoBehaviour
 
     void UpdateUI()
     {
-        if (staminaBar != null)
-        {
-            // Mengisi slider (0 sampai 1)
-            staminaBar.value = currentStamina / maxStamina;
+        if (staminaBar == null)
+            return;
 
+        // Mengisi slider (0 sampai 1)
+        staminaBar.value = currentStamina / maxStamina;
+
+        if (staminaBar.fillRect != null)
+        {
             // Opsional: Ubah warna bar jadi merah kalau habis (Exhausted)
             Image fillImage = staminaBar.fillRect.GetComponent<Image>();
-            if (isExhausted)
-                fillImage.color = Color.red;
-            else
-                fillImage.color = Color.green;
+            if (fillImage != null)
+                fillImage.color = isExhausted ? Color.red : Color.green;
         }
     }
 
@@ -140,7 +160,9 @@ public class PlayerMovement : MonoBehaviour
         canMove = !IsSettingsOpen();
 
         if (!canMove)
+        {
             return;
+        }
 
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
@@ -164,13 +186,36 @@ public class PlayerMovement : MonoBehaviour
 
         currentSpeed = canSprint ? sprintSpeed : walkSpeed;
 
-        Vector3 move = (transform.forward * moveZ + transform.right * moveX).normalized * currentSpeed;
+        Vector3 horizontalMove = (transform.forward * moveZ + transform.right * moveX).normalized * currentSpeed;
+        Vector3 move = horizontalMove;
 
         // Apply gravity
         velocity.y += gravity * Time.deltaTime;
+
+        if (ShouldStickToStairs(horizontalMove))
+            velocity.y = Mathf.Min(velocity.y, -stairStickToGroundForce);
+
+        if (ShouldAssistStairs(horizontalMove))
+            velocity.y = Mathf.Max(velocity.y, stairAssistSpeed);
+
         move.y = velocity.y;
 
         controller.Move(move * Time.deltaTime);
+    }
+
+    private bool ShouldAssistStairs(Vector3 horizontalMove)
+    {
+        return stairAssistSpeed > 0f && HasRecentStairContact() && horizontalMove.sqrMagnitude > 0.01f;
+    }
+
+    private bool ShouldStickToStairs(Vector3 horizontalMove)
+    {
+        return HasRecentStairContact() && horizontalMove.sqrMagnitude > 0.01f;
+    }
+
+    private bool HasRecentStairContact()
+    {
+        return activeStair != null && Time.time - lastStairContactTime <= stairContactGraceTime;
     }
 
     private bool IsSettingsOpen()
@@ -255,6 +300,67 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.color = Color.green;
             Gizmos.DrawWireSphere(groundCheck.position, groundDistance);
         }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        TrySetActiveStair(other);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        TrySetActiveStair(other);
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other == activeStair)
+            activeStair = null;
+    }
+
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        TrySetActiveStair(hit.collider);
+    }
+
+    private void TrySetActiveStair(Collider other)
+    {
+        if (!IsStair(other))
+            return;
+
+        activeStair = other;
+        lastStairContactTime = Time.time;
+    }
+
+    private bool IsStair(Collider other)
+    {
+        if (other == null)
+            return false;
+
+        if (stairLayer.value != 0 && (stairLayer.value & (1 << other.gameObject.layer)) != 0)
+            return true;
+
+        Transform current = other.transform;
+        while (current != null)
+        {
+            string objectName = current.name.ToLowerInvariant();
+            string objectTag = current.gameObject.tag.ToLowerInvariant();
+
+            for (int i = 0; i < stairNameKeywords.Length; i++)
+            {
+                string keyword = stairNameKeywords[i];
+                if (string.IsNullOrWhiteSpace(keyword))
+                    continue;
+
+                keyword = keyword.ToLowerInvariant();
+                if (objectName.Contains(keyword) || objectTag.Contains(keyword))
+                    return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
     }
 
     // Tambahkan fungsi publik ini di bagian paling bawah script PlayerMovement.cs

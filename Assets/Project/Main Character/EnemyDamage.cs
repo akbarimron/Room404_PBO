@@ -7,7 +7,7 @@ public class EnemyDamage : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             PlayerHealth health = other.GetComponent<PlayerHealth>();
-            if (health != null)
+            if (health != null && !health.isHiding)
             {
                 health.TakeDamage(1);
                 Debug.Log("Player terkena hit!"); 

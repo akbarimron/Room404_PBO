@@ -9,6 +9,7 @@ public class PlayerHealth : MonoBehaviour
     public int maxHealth = 3;
     private int currentHealth;
     private bool isDead = false;
+    [HideInInspector] public bool isHiding = false;
 
     [Header("Respawn Settings")]
     private Vector3 spawnPoint = new Vector3(28.5f, 0.36f, -27.78f);

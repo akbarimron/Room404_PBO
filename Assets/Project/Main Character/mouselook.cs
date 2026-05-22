@@ -11,6 +11,10 @@ public class mouselook : MonoBehaviour
 
     private float xRotation = 0f;
 
+    private bool clampHorizontal = false;
+    private float centerYaw = 0f;
+    private float yawRange = 70f;
+
     void Awake()
     {
         ResolvePlayerBody();
@@ -77,7 +81,18 @@ public class mouselook : MonoBehaviour
             transform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
 
             // Rotate player body left/right (mouse)
-            playerBody.Rotate(Vector3.up * mouseX);
+            if (clampHorizontal)
+            {
+                float currentYaw = playerBody.eulerAngles.y;
+                float newYaw = currentYaw + mouseX;
+                float deltaAngle = Mathf.DeltaAngle(centerYaw, newYaw);
+                deltaAngle = Mathf.Clamp(deltaAngle, -yawRange, yawRange);
+                playerBody.rotation = Quaternion.Euler(0f, centerYaw + deltaAngle, 0f);
+            }
+            else
+            {
+                playerBody.Rotate(Vector3.up * mouseX);
+            }
         }
     }
 
@@ -96,5 +111,27 @@ public class mouselook : MonoBehaviour
     {
         SettingsUI[] foundSettingsUis = FindObjectsByType<SettingsUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         return foundSettingsUis.Length > 0 ? foundSettingsUis[0] : null;
+    }
+
+    public void SetRotation(float pitch, float yaw)
+    {
+        xRotation = pitch;
+        transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+        if (playerBody != null)
+        {
+            playerBody.rotation = Quaternion.Euler(0f, yaw, 0f);
+        }
+    }
+
+    public void EnableHidingClamp(float targetCenterYaw, float range = 70f)
+    {
+        clampHorizontal = true;
+        centerYaw = targetCenterYaw;
+        yawRange = range;
+    }
+
+    public void DisableHidingClamp()
+    {
+        clampHorizontal = false;
     }
 }

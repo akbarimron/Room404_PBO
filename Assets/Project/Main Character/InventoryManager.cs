@@ -20,6 +20,9 @@ public class InventoryManager : MonoBehaviour
     {
         playerMovement = GetComponent<PlayerMovement>();
 
+        if (inventoryUI == null)
+            inventoryUI = FindInventoryUI();
+
         // Lakukan update UI di awal game agar semua kotak slot UI mati
         if (inventoryUI != null)
         {
@@ -54,6 +57,9 @@ public class InventoryManager : MonoBehaviour
         Debug.Log($"{itemName} berhasil diambil ke inventory.");
 
         // Perbarui tampilan layar setelah item berhasil diambil!
+        if (inventoryUI == null)
+            inventoryUI = FindInventoryUI();
+
         if (inventoryUI != null)
         {
             inventoryUI.UpdateInventoryDisplayWithSprites(itemIcons);
@@ -81,6 +87,9 @@ public class InventoryManager : MonoBehaviour
                 itemIcons.RemoveAt(slotIndex); // Hapus ikon di slot tersebut
                 
                 // Perbarui tampilan layar setelah item terhapus/digunakan!
+                if (inventoryUI == null)
+                    inventoryUI = FindInventoryUI();
+
                 if (inventoryUI != null)
                 {
                     inventoryUI.UpdateInventoryDisplayWithSprites(itemIcons);
@@ -91,5 +100,11 @@ public class InventoryManager : MonoBehaviour
         {
             Debug.Log($"Slot {slotIndex + 1} kosong!");
         }
+    }
+
+    private InventoryUI FindInventoryUI()
+    {
+        InventoryUI[] foundInventoryUis = FindObjectsByType<InventoryUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        return foundInventoryUis.Length > 0 ? foundInventoryUis[0] : null;
     }
 }

@@ -1,0 +1,181 @@
+using UnityEngine;
+using System.Collections;
+using UnityEngine.InputSystem;
+
+public class LockerController : MonoBehaviour
+{
+    [Header("Locker Spots")]
+    [SerializeField] private Transform hidingSpot;
+    [SerializeField] private Transform exitSpot;
+
+    [Header("Prompts")]
+    [SerializeField] private string hidePrompt = "Press [E] to hide in locker";
+    [SerializeField] private string exitPrompt = "Press [E] to exit locker";
+
+    [Header("Hiding Settings")]
+    [SerializeField] private float transitionSpeed = 5f;
+
+    private bool isOccupied = false;
+    private GameObject hidingPlayer;
+    private bool isTransitioning = false;
+
+    public string Prompt => isOccupied ? exitPrompt : hidePrompt;
+
+    void Update()
+    {
+        if (isOccupied && !isTransitioning)
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
+            {
+                StartCoroutine(ExitLocker());
+            }
+        }
+    }
+
+    public void ToggleHiding(GameObject player)
+    {
+        if (isTransitioning) return;
+
+        if (!isOccupied)
+        {
+            StartCoroutine(EnterLocker(player));
+        }
+        else
+        {
+            StartCoroutine(ExitLocker());
+        }
+    }
+
+    private IEnumerator EnterLocker(GameObject player)
+    {
+        isTransitioning = true;
+        hidingPlayer = player;
+        isOccupied = true;
+
+        // Set hiding state on PlayerHealth
+        PlayerHealth health = player.GetComponent<PlayerHealth>();
+        if (health != null)
+        {
+            health.isHiding = true;
+        }
+
+        // Disable player controls
+        PlayerMovement movement = player.GetComponent<PlayerMovement>();
+        CharacterController controller = player.GetComponent<CharacterController>();
+
+        if (movement != null) movement.enabled = false;
+        if (controller != null) controller.enabled = false;
+
+        // Disable mouselook during transition
+        mouselook look = player.GetComponentInChildren<mouselook>();
+        if (look != null) look.enabled = false;
+
+        // Change tag to avoid AI detection
+        player.tag = "Untagged";
+
+        // Determine targets
+        Vector3 targetPos = hidingSpot != null ? hidingSpot.position : transform.position;
+        // Face the locker door (which is transform.rotation/forward)
+        Quaternion targetRot = hidingSpot != null ? hidingSpot.rotation : transform.rotation;
+
+        float elapsed = 0f;
+        Vector3 startPos = player.transform.position;
+        Quaternion startRot = player.transform.rotation;
+
+        while (elapsed < 1f)
+        {
+            elapsed += Time.deltaTime * transitionSpeed;
+            player.transform.position = Vector3.Lerp(startPos, targetPos, elapsed);
+            player.transform.rotation = Quaternion.Slerp(startRot, targetRot, elapsed);
+            yield return null;
+        }
+
+        player.transform.position = targetPos;
+        player.transform.rotation = targetRot;
+
+        // Reset and re-enable mouselook facing the locker door, clamping rotation to ±70 degrees
+        if (look != null)
+        {
+            look.SetRotation(0f, targetRot.eulerAngles.y);
+            look.EnableHidingClamp(targetRot.eulerAngles.y, 70f);
+            look.enabled = true;
+        }
+
+        // Show exit prompt persistently
+        if (InteractionUI.Instance != null)
+        {
+            InteractionUI.Instance.ShowText(exitPrompt);
+        }
+
+        isTransitioning = false;
+    }
+
+    private IEnumerator ExitLocker()
+    {
+        if (hidingPlayer == null) yield break;
+
+        isTransitioning = true;
+
+        // Hide interaction text prompt
+        if (InteractionUI.Instance != null)
+        {
+            InteractionUI.Instance.HideText();
+        }
+
+        // Disable mouselook during transition
+        mouselook look = hidingPlayer.GetComponentInChildren<mouselook>();
+        if (look != null) look.enabled = false;
+
+        // Determine target position and make sure it faces away from the locker (which is transform.rotation)
+        Vector3 targetPos = exitSpot != null ? exitSpot.position : (transform.position + transform.forward * 1.2f);
+        Quaternion targetRot = exitSpot != null ? exitSpot.rotation : transform.rotation;
+        
+        // Rotate 180 degrees so player faces away from the locker
+        targetRot = targetRot * Quaternion.Euler(0f, 180f, 0f);
+
+        float elapsed = 0f;
+        Vector3 startPos = hidingPlayer.transform.position;
+        Quaternion startRot = hidingPlayer.transform.rotation;
+
+        while (elapsed < 1f)
+        {
+            elapsed += Time.deltaTime * transitionSpeed;
+            hidingPlayer.transform.position = Vector3.Lerp(startPos, targetPos, elapsed);
+            hidingPlayer.transform.rotation = Quaternion.Slerp(startRot, targetRot, elapsed);
+            yield return null;
+        }
+
+        hidingPlayer.transform.position = targetPos;
+        hidingPlayer.transform.rotation = targetRot;
+
+        // Restore tag
+        hidingPlayer.tag = "Player";
+
+        // Re-enable components
+        PlayerMovement movement = hidingPlayer.GetComponent<PlayerMovement>();
+        CharacterController controller = hidingPlayer.GetComponent<CharacterController>();
+
+        if (movement != null) movement.enabled = true;
+        if (controller != null) controller.enabled = true;
+
+        // Reset and re-enable mouselook facing away from the locker
+        if (look != null)
+        {
+            look.DisableHidingClamp();
+            look.SetRotation(0f, targetRot.eulerAngles.y);
+            look.enabled = true;
+        }
+
+        // Clear hiding state on PlayerHealth
+        PlayerHealth health = hidingPlayer.GetComponent<PlayerHealth>();
+        if (health != null)
+        {
+            health.isHiding = false;
+        }
+
+        hidingPlayer = null;
+        isOccupied = false;
+        isTransitioning = false;
+    }
+}
