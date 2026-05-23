@@ -69,6 +69,10 @@ public class InteractionUI : MonoBehaviour
         {
             Debug.LogError("<color=red>[InteractionUI]</color> TMP_Text component 'interactionText' is NOT assigned in the Inspector on " + gameObject.name + "! Please drag your text UI component into this field.");
         }
+        else
+        {
+            interactionText.color = Color.red;
+        }
         // Pastikan teks mati saat awal game
         HideText();
     }
@@ -130,7 +134,7 @@ public class InteractionUI : MonoBehaviour
         TextMeshProUGUI tmpText = textObj.AddComponent<TextMeshProUGUI>();
         tmpText.alignment = TextAlignmentOptions.Center;
         tmpText.fontSize = 28;
-        tmpText.color = Color.white;
+        tmpText.color = Color.red;
         
         tmpText.outlineColor = Color.black;
         tmpText.outlineWidth = 0.2f;

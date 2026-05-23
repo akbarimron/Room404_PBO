@@ -11,6 +11,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/deathScene.unity
     guid: e9c2709f1d02e254cbe0341e2c65ce3e
+  - enabled: 1
+    path: Assets/Scenes/Kegelapan-INSIDEKOST.unity
+    guid: 25a360501c230b5448145634cde27e06
+  - enabled: 1
+    path: Assets/Scenes/Settings.unity
+    guid: a8d3fe06122bd6c419fe746ed5434410
+  - enabled: 1
+    path: Assets/Scenes/INSIDE KOST.unity
+    guid: 37b6b0fbfebe6fe4eb354b0d8ab0b0ac
+  - enabled: 1
+    path: Assets/Scenes/OUTSIDE KOS.unity
+    guid: 4a6d24350093f3d489947e6c0c4c7169
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

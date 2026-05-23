@@ -48,6 +48,7 @@ public class PlayerMovement : MonoBehaviour
 
     private Vector3 velocity = Vector3.zero;
     private bool isGrounded;
+    private bool wasGrounded;
     private float currentSpeed;
     private Vector3 cameraOriginalPos;
     private float bobTimer = 0f;
@@ -146,10 +147,16 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleGroundCheck()
     {
+        wasGrounded = isGrounded;
+
+        bool sphereGrounded;
         if (groundLayer == 0)
-            isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance);
+            sphereGrounded = Physics.CheckSphere(groundCheck.position, groundDistance);
         else
-            isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundLayer);
+            sphereGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundLayer);
+
+        // Combine sphere check with controller's physical grounding for robustness
+        isGrounded = sphereGrounded || (controller != null && controller.isGrounded);
 
         if (isGrounded && velocity.y < 0)
             velocity.y = -2f;
@@ -201,16 +208,61 @@ public class PlayerMovement : MonoBehaviour
         move.y = velocity.y;
 
         controller.Move(move * Time.deltaTime);
+
+        // Ground Snapping (to prevent floating when walking down stairs/slopes)
+        if ((wasGrounded || HasRecentStairContact()) && velocity.y <= 0 && groundCheck != null)
+        {
+            // Increase the check range to support steeper or faster steps (minimum 1.2m)
+            float checkDist = Mathf.Max(stairStepOffset, 1.2f);
+            Vector3 rayStart = groundCheck.position + Vector3.up * 0.5f; // Start 0.5m above feet to avoid starting below the floor
+            LayerMask mask = ~0; // Check all layers to ensure we snap to stairs regardless of layer mismatches
+            
+            if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, checkDist + 0.5f, mask, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.transform.root != transform.root)
+                {
+                    // Calculate base snap distance, then add 0.05m extra push to force solid collision contact
+                    float snapDistance = (hit.distance - 0.5f) + 0.05f;
+                    if (snapDistance > 0.01f)
+                    {
+                        controller.Move(Vector3.down * snapDistance);
+                        isGrounded = true;
+                        velocity.y = -2f;
+                    }
+                }
+            }
+        }
     }
 
     private bool ShouldAssistStairs(Vector3 horizontalMove)
     {
-        return stairAssistSpeed > 0f && HasRecentStairContact() && horizontalMove.sqrMagnitude > 0.01f;
+        return stairAssistSpeed > 0f && HasRecentStairContact() && IsMovingUpStairs(horizontalMove);
     }
 
     private bool ShouldStickToStairs(Vector3 horizontalMove)
     {
-        return HasRecentStairContact() && horizontalMove.sqrMagnitude > 0.01f;
+        return HasRecentStairContact() && horizontalMove.sqrMagnitude > 0.01f && !IsMovingUpStairs(horizontalMove);
+    }
+
+    private bool IsMovingUpStairs(Vector3 horizontalMove)
+    {
+        if (horizontalMove.sqrMagnitude < 0.01f || groundCheck == null)
+            return false;
+
+        // Cast a ray slightly forward in the movement direction (e.g. 0.3m) and look at the ground height
+        Vector3 forwardDir = horizontalMove.normalized;
+        Vector3 checkOrigin = groundCheck.position + forwardDir * 0.3f + Vector3.up * 0.5f;
+        
+        if (Physics.Raycast(checkOrigin, Vector3.down, out RaycastHit hit, 1.0f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.transform.root != transform.root)
+            {
+                // If the hit point is higher than groundCheck.position, the ground in front is higher (going UP)
+                float heightDiff = hit.point.y - groundCheck.position.y;
+                return heightDiff > 0.05f; // Threshold of 5cm
+            }
+        }
+        return false;
     }
 
     private bool HasRecentStairContact()

@@ -10,15 +10,18 @@ public class FlashlightController : MonoBehaviour
     [Header("Input Settings")]
     [SerializeField] private Key toggleKey = Key.F;
 
-    [Header("Close Distance Fade Settings")]
+    [Header("Close Distance Fade & Spread Settings")]
     [SerializeField] private bool enableDistanceFade = true;
-    [SerializeField] private float minIntensity = 0.5f;
+    [SerializeField] private float minIntensity = 0.4f; // Meredup agar tidak silau
+    [SerializeField] private float maxSpotAngle = 90f; // Senter melebar saat dekat
     [SerializeField] private float fadeStartDistance = 3.0f;
     [SerializeField] private float minFadeDistance = 0.5f;
     [SerializeField] private float lerpSpeed = 10f;
 
     private Transform cameraTransform;
     private float baseIntensity = 3.5f;
+    private float baseSpotAngle = 55f;
+    private Vector3 baseLocalPosition = new Vector3(0f, 0f, 0.2f);
 
     void Start()
     {
@@ -51,10 +54,12 @@ public class FlashlightController : MonoBehaviour
             CreateDefaultFlashlight();
         }
 
-        // Set initial state and capture base intensity
+        // Set initial state and capture base settings
         if (flashlight != null)
         {
             baseIntensity = flashlight.intensity;
+            baseSpotAngle = flashlight.spotAngle;
+            baseLocalPosition = flashlight.transform.localPosition;
             flashlight.enabled = isOnAtStart;
         }
     }
@@ -69,7 +74,7 @@ public class FlashlightController : MonoBehaviour
 
         if (flashlight != null && flashlight.enabled && enableDistanceFade)
         {
-            AdjustIntensity();
+            AdjustFlashlightProperties();
         }
     }
 
@@ -80,28 +85,48 @@ public class FlashlightController : MonoBehaviour
             flashlight.enabled = !flashlight.enabled;
             Debug.Log($"<color=yellow>[FlashlightController]</color> Flashlight toggled. Active: {flashlight.enabled}");
             
-            // Reset to base intensity when turned off
+            // Reset to base settings when turned off
             if (!flashlight.enabled)
             {
                 flashlight.intensity = baseIntensity;
+                flashlight.spotAngle = baseSpotAngle;
+                flashlight.transform.localPosition = baseLocalPosition;
             }
         }
     }
 
-    private void AdjustIntensity()
+    private void AdjustFlashlightProperties()
     {
         float distance = GetDistanceToWall();
         float targetIntensity = baseIntensity;
+        float targetSpotAngle = baseSpotAngle;
+        float targetLocalZ = baseLocalPosition.z;
 
         if (distance < fadeStartDistance)
         {
             // Normalize t between minFadeDistance and fadeStartDistance
             float t = Mathf.Clamp01((distance - minFadeDistance) / (fadeStartDistance - minFadeDistance));
-            targetIntensity = Mathf.Lerp(minIntensity, baseIntensity, t);
+            
+            // Ensure we dim a lot (minIntensity) but NEVER go completely dark/zero
+            float safeMinIntensity = Mathf.Max(0.2f, minIntensity);
+            targetIntensity = Mathf.Lerp(safeMinIntensity, baseIntensity, t);
+            
+            // Widen the spot angle when close
+            targetSpotAngle = Mathf.Lerp(maxSpotAngle, baseSpotAngle, t);
+            
+            // Pull the light source position backwards (towards camera, z=0) when close to prevent clipping into meshes/colliders
+            float minZ = Mathf.Min(0.0f, baseLocalPosition.z);
+            float maxZ = baseLocalPosition.z;
+            targetLocalZ = Mathf.Lerp(minZ, maxZ, t);
         }
 
-        // Smoothly adjust the flashlight intensity to prevent popping
+        // Smoothly adjust the flashlight properties to prevent popping
         flashlight.intensity = Mathf.Lerp(flashlight.intensity, targetIntensity, Time.deltaTime * lerpSpeed);
+        flashlight.spotAngle = Mathf.Lerp(flashlight.spotAngle, targetSpotAngle, Time.deltaTime * lerpSpeed);
+        
+        Vector3 localPos = flashlight.transform.localPosition;
+        localPos.z = Mathf.Lerp(localPos.z, targetLocalZ, Time.deltaTime * lerpSpeed);
+        flashlight.transform.localPosition = localPos;
     }
 
     private float GetDistanceToWall()
@@ -141,6 +166,8 @@ public class FlashlightController : MonoBehaviour
         flashlight.intensity = 3.5f;
         flashlight.shadows = LightShadows.Soft;
         baseIntensity = flashlight.intensity;
+        baseSpotAngle = flashlight.spotAngle;
+        baseLocalPosition = flashlight.transform.localPosition;
         
         Debug.Log("<color=green>[FlashlightController]</color> Created default Spot Light under Main Camera.");
     }
