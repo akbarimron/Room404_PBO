@@ -11,6 +11,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("UI Reference")]
     [SerializeField] private Slider staminaBar;
+    [SerializeField] private SettingsUI settingsUI;
 
     [Header("Stamina Settings")]
     [SerializeField] private float maxStamina = 100f;
@@ -31,6 +32,15 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float groundDistance = 0.2f;
     [SerializeField] private LayerMask groundLayer;
 
+    [Header("Stairs")]
+    [SerializeField] private float stairStepOffset = 0.5f;
+    [SerializeField] private float stairSlopeLimit = 50f;
+    [SerializeField] private float stairAssistSpeed = 0f;
+    [SerializeField] private float stairStickToGroundForce = 8f;
+    [SerializeField] private float stairContactGraceTime = 0.2f;
+    [SerializeField] private LayerMask stairLayer;
+    [SerializeField] private string[] stairNameKeywords = { "tangga", "stairs", "stair" };
+
     [Header("Camera Bobbing")]
     [SerializeField] private Transform mainCamera;
     [SerializeField] private float bobSpeed = 8f;
@@ -38,17 +48,29 @@ public class PlayerMovement : MonoBehaviour
 
     private Vector3 velocity = Vector3.zero;
     private bool isGrounded;
+    private bool wasGrounded;
     private float currentSpeed;
     private Vector3 cameraOriginalPos;
     private float bobTimer = 0f;
     private bool isMoving = false;
+    private bool canMove = true;
+    private Collider activeStair;
+    private float lastStairContactTime = -1f;
 
     void Start()
     {
-        currentStamina = maxStamina; // Inisialisasi stamina penuh
+        currentStamina = maxStamina;
+        gravity = -25f;
+        stairStickToGroundForce = 20f;
 
         if (controller == null)
             controller = GetComponent<CharacterController>();
+
+        if (controller != null)
+        {
+            controller.stepOffset = Mathf.Max(controller.stepOffset, stairStepOffset);
+            controller.slopeLimit = Mathf.Max(controller.slopeLimit, stairSlopeLimit);
+        }
 
         if (mainCamera == null)
         {
@@ -67,10 +89,26 @@ public class PlayerMovement : MonoBehaviour
             groundCheckObj.transform.localPosition = new Vector3(0, -1f, 0);
             groundCheck = groundCheckObj.transform;
         }
+
+        if (settingsUI == null)
+            settingsUI = FindSettingsUI();
+
+        if (settingsUI == null)
+            Debug.LogWarning("SettingsUI not found!");
+
+        if (SettingsManager.Instance != null)
+        {
+            var settings = SettingsManager.Instance.GetSettings();
+            walkSpeed = settings.walkSpeed;
+            sprintSpeed = settings.sprintSpeed;
+            bobSpeed = settings.bobSpeed;
+            bobAmount = settings.bobAmount;
+        }
     }
 
     void Update()
     {
+        ApplyRuntimeSettings();
         HandleGroundCheck();
         HandleInputAndMovement();
         HandleStamina();
@@ -78,28 +116,47 @@ public class PlayerMovement : MonoBehaviour
         UpdateUI();
     }
 
+    void ApplyRuntimeSettings()
+    {
+        if (SettingsManager.Instance == null)
+            return;
+
+        var settings = SettingsManager.Instance.GetSettings();
+        walkSpeed = settings.walkSpeed;
+        sprintSpeed = settings.sprintSpeed;
+        bobSpeed = settings.bobSpeed;
+        bobAmount = settings.bobAmount;
+    }
+
     void UpdateUI()
     {
-        if (staminaBar != null)
-        {
-            // Mengisi slider (0 sampai 1)
-            staminaBar.value = currentStamina / maxStamina;
+        if (staminaBar == null)
+            return;
 
+        // Mengisi slider (0 sampai 1)
+        staminaBar.value = currentStamina / maxStamina;
+
+        if (staminaBar.fillRect != null)
+        {
             // Opsional: Ubah warna bar jadi merah kalau habis (Exhausted)
             Image fillImage = staminaBar.fillRect.GetComponent<Image>();
-            if (isExhausted)
-                fillImage.color = Color.red;
-            else
-                fillImage.color = Color.green;
+            if (fillImage != null)
+                fillImage.color = isExhausted ? Color.red : Color.green;
         }
     }
 
     void HandleGroundCheck()
     {
+        wasGrounded = isGrounded;
+
+        bool sphereGrounded;
         if (groundLayer == 0)
-            isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance);
+            sphereGrounded = Physics.CheckSphere(groundCheck.position, groundDistance);
         else
-            isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundLayer);
+            sphereGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundLayer);
+
+        // Combine sphere check with controller's physical grounding for robustness
+        isGrounded = sphereGrounded || (controller != null && controller.isGrounded);
 
         if (isGrounded && velocity.y < 0)
             velocity.y = -2f;
@@ -107,6 +164,13 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleInputAndMovement()
     {
+        canMove = !IsSettingsOpen();
+
+        if (!canMove)
+        {
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
 
@@ -129,13 +193,98 @@ public class PlayerMovement : MonoBehaviour
 
         currentSpeed = canSprint ? sprintSpeed : walkSpeed;
 
-        Vector3 move = (transform.forward * moveZ + transform.right * moveX).normalized * currentSpeed;
+        Vector3 horizontalMove = (transform.forward * moveZ + transform.right * moveX).normalized * currentSpeed;
+        Vector3 move = horizontalMove;
 
         // Apply gravity
         velocity.y += gravity * Time.deltaTime;
+
+        if (ShouldStickToStairs(horizontalMove))
+            velocity.y = Mathf.Min(velocity.y, -stairStickToGroundForce);
+
+        if (ShouldAssistStairs(horizontalMove))
+            velocity.y = Mathf.Max(velocity.y, stairAssistSpeed);
+
         move.y = velocity.y;
 
         controller.Move(move * Time.deltaTime);
+
+        // Ground Snapping (to prevent floating when walking down stairs/slopes)
+        if ((wasGrounded || HasRecentStairContact()) && velocity.y <= 0 && groundCheck != null)
+        {
+            // Increase the check range to support steeper or faster steps (minimum 1.2m)
+            float checkDist = Mathf.Max(stairStepOffset, 1.2f);
+            Vector3 rayStart = groundCheck.position + Vector3.up * 0.5f; // Start 0.5m above feet to avoid starting below the floor
+            LayerMask mask = ~0; // Check all layers to ensure we snap to stairs regardless of layer mismatches
+            
+            if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, checkDist + 0.5f, mask, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.transform.root != transform.root)
+                {
+                    // Calculate base snap distance, then add 0.05m extra push to force solid collision contact
+                    float snapDistance = (hit.distance - 0.5f) + 0.05f;
+                    if (snapDistance > 0.01f)
+                    {
+                        controller.Move(Vector3.down * snapDistance);
+                        isGrounded = true;
+                        velocity.y = -2f;
+                    }
+                }
+            }
+        }
+    }
+
+    private bool ShouldAssistStairs(Vector3 horizontalMove)
+    {
+        return stairAssistSpeed > 0f && HasRecentStairContact() && IsMovingUpStairs(horizontalMove);
+    }
+
+    private bool ShouldStickToStairs(Vector3 horizontalMove)
+    {
+        return HasRecentStairContact() && horizontalMove.sqrMagnitude > 0.01f && !IsMovingUpStairs(horizontalMove);
+    }
+
+    private bool IsMovingUpStairs(Vector3 horizontalMove)
+    {
+        if (horizontalMove.sqrMagnitude < 0.01f || groundCheck == null)
+            return false;
+
+        // Cast a ray slightly forward in the movement direction (e.g. 0.3m) and look at the ground height
+        Vector3 forwardDir = horizontalMove.normalized;
+        Vector3 checkOrigin = groundCheck.position + forwardDir * 0.3f + Vector3.up * 0.5f;
+        
+        if (Physics.Raycast(checkOrigin, Vector3.down, out RaycastHit hit, 1.0f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.transform.root != transform.root)
+            {
+                // If the hit point is higher than groundCheck.position, the ground in front is higher (going UP)
+                float heightDiff = hit.point.y - groundCheck.position.y;
+                return heightDiff > 0.05f; // Threshold of 5cm
+            }
+        }
+        return false;
+    }
+
+    private bool HasRecentStairContact()
+    {
+        return activeStair != null && Time.time - lastStairContactTime <= stairContactGraceTime;
+    }
+
+    private bool IsSettingsOpen()
+    {
+        if (settingsUI == null)
+            settingsUI = FindSettingsUI();
+
+        if (settingsUI != null)
+            return settingsUI.IsSettingsOpen();
+
+        return SettingsManager.Instance != null && SettingsManager.Instance.IsSettingsOpen();
+    }
+
+    private SettingsUI FindSettingsUI()
+    {
+        SettingsUI[] foundSettingsUis = FindObjectsByType<SettingsUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        return foundSettingsUis.Length > 0 ? foundSettingsUis[0] : null;
     }
 
     void HandleStamina()
@@ -203,5 +352,83 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.color = Color.green;
             Gizmos.DrawWireSphere(groundCheck.position, groundDistance);
         }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        TrySetActiveStair(other);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        TrySetActiveStair(other);
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other == activeStair)
+            activeStair = null;
+    }
+
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        TrySetActiveStair(hit.collider);
+    }
+
+    private void TrySetActiveStair(Collider other)
+    {
+        if (!IsStair(other))
+            return;
+
+        activeStair = other;
+        lastStairContactTime = Time.time;
+    }
+
+    private bool IsStair(Collider other)
+    {
+        if (other == null)
+            return false;
+
+        if (stairLayer.value != 0 && (stairLayer.value & (1 << other.gameObject.layer)) != 0)
+            return true;
+
+        Transform current = other.transform;
+        while (current != null)
+        {
+            string objectName = current.name.ToLowerInvariant();
+            string objectTag = current.gameObject.tag.ToLowerInvariant();
+
+            for (int i = 0; i < stairNameKeywords.Length; i++)
+            {
+                string keyword = stairNameKeywords[i];
+                if (string.IsNullOrWhiteSpace(keyword))
+                    continue;
+
+                keyword = keyword.ToLowerInvariant();
+                if (objectName.Contains(keyword) || objectTag.Contains(keyword))
+                    return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
+    }
+
+    // Tambahkan fungsi publik ini di bagian paling bawah script PlayerMovement.cs
+    public void IncreaseStamina(float amount)
+    {
+        currentStamina += amount;
+        
+        // Batasi agar tidak melebihi kapasitas maksimal stamina
+        currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        
+        // Jika stamina bertambah melampaui batas minimal lari, matikan status exhausted
+        if (isExhausted && currentStamina >= minStaminaToSprint)
+        {
+            isExhausted = false;
+        }
+
+        Debug.Log("Minuman dikonsumsi! Stamina saat ini: " + Mathf.RoundToInt(currentStamina));
     }
 }
