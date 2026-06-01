@@ -12,8 +12,9 @@ public class FlashlightController : MonoBehaviour
 
     [Header("Close Distance Fade & Spread Settings")]
     [SerializeField] private bool enableDistanceFade = true;
-    [SerializeField] private float minIntensity = 0.4f; // Meredup agar tidak silau
+    [SerializeField] private float minIntensity = 1.2f; // Kekuatan cahaya minimum agar tidak memudar gelap gulita
     [SerializeField] private float maxSpotAngle = 90f; // Senter melebar saat dekat
+    [SerializeField] private float minLocalZ = -0.6f; // Ditarik ke belakang kamera untuk mencegah hotspot silau
     [SerializeField] private float fadeStartDistance = 3.0f;
     [SerializeField] private float minFadeDistance = 0.5f;
     [SerializeField] private float lerpSpeed = 10f;
@@ -107,17 +108,17 @@ public class FlashlightController : MonoBehaviour
             // Normalize t between minFadeDistance and fadeStartDistance
             float t = Mathf.Clamp01((distance - minFadeDistance) / (fadeStartDistance - minFadeDistance));
             
-            // Ensure we dim a lot (minIntensity) but NEVER go completely dark/zero
-            float safeMinIntensity = Mathf.Max(0.2f, minIntensity);
+            // Maintain a soft but clear intensity (at least 1.2f) to avoid fading to black
+            float safeMinIntensity = Mathf.Max(1.2f, minIntensity);
             targetIntensity = Mathf.Lerp(safeMinIntensity, baseIntensity, t);
             
-            // Widen the spot angle when close
+            // Widen the spot angle when close to diffuse the light
             targetSpotAngle = Mathf.Lerp(maxSpotAngle, baseSpotAngle, t);
             
-            // Pull the light source position backwards (towards camera, z=0) when close to prevent clipping into meshes/colliders
-            float minZ = Mathf.Min(0.0f, baseLocalPosition.z);
-            float maxZ = baseLocalPosition.z;
-            targetLocalZ = Mathf.Lerp(minZ, maxZ, t);
+            // Pull the light source position backwards behind the camera (minLocalZ) when close
+            // This increases the physical distance between the light source and the wall,
+            // which prevents hot-spot glare while maintaining excellent overall illumination.
+            targetLocalZ = Mathf.Lerp(minLocalZ, baseLocalPosition.z, t);
         }
 
         // Smoothly adjust the flashlight properties to prevent popping

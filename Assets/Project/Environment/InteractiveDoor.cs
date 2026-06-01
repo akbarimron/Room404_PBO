@@ -16,6 +16,7 @@ public class InteractiveDoor : MonoBehaviour
     private Quaternion openRotation;
     private bool isOpen;
 
+    public bool IsOpen => isOpen;
     public string Prompt => isOpen ? closePrompt : openPrompt;
 
     void Awake()
