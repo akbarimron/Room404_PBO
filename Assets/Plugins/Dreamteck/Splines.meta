@@ -1,6 +1,10 @@
 fileFormatVersion: 2
+<<<<<<<< Updated upstream:Assets/Plugins/Dreamteck/Splines.meta
 guid: 866c3652f7eea9344891cd280b38c098
 folderAsset: yes
+========
+guid: 8ff64b11233e27f45bbf1e8f267bdc6a
+>>>>>>>> Stashed changes:Assets/NewAssets.zip.meta
 DefaultImporter:
   externalObjects: {}
   userData: 
