@@ -34,14 +34,10 @@ public class InteractionUI : MonoBehaviour
 
             return _instance;
         }
-        private set
-        {
-            _instance = value;
-        }
     }
 
     [Header("UI Component")]
-    [SerializeField] private TMP_Text interactionText; // Ganti jadi 'public Text interactionText' jika pakai teks biasa
+    [SerializeField] private TMP_Text interactionText;
 
     void Awake()
     {
@@ -51,13 +47,17 @@ public class InteractionUI : MonoBehaviour
         }
         else if (_instance != this)
         {
-            if (_instance.gameObject != null)
+            // Jika instance yang sudah ada adalah Canvas dinamis fallback, hancurkan fallback dan pakai Canvas asli ini
+            if (_instance.gameObject != null && _instance.gameObject.name == "InteractionUI_Canvas")
             {
-                Destroy(gameObject);
+                Debug.Log("<color=green>[InteractionUI]</color> Menemukan UI fallback dinamis. Menghapusnya untuk menggunakan Canvas asli.");
+                Destroy(_instance.gameObject);
+                _instance = this;
             }
             else
             {
-                _instance = this;
+                // Jika duplikat UI asli lainnya, hancurkan duplikat baru ini
+                Destroy(gameObject);
             }
         }
     }
@@ -65,49 +65,45 @@ public class InteractionUI : MonoBehaviour
     void Start()
     {
         Debug.Log("<color=green>[InteractionUI]</color> Script started on " + gameObject.name);
-        if (interactionText == null)
+        EnsureInteractionText();
+        HideText();
+    }
+
+    private void EnsureInteractionText()
+    {
+        if (interactionText != null) return;
+
+        // Coba cari di komponen anak (termasuk yang non-aktif) sebagai fallback
+        interactionText = GetComponentInChildren<TMP_Text>(true);
+        if (interactionText != null)
         {
-            Debug.LogError("<color=red>[InteractionUI]</color> TMP_Text component 'interactionText' is NOT assigned in the Inspector on " + gameObject.name + "! Please drag your text UI component into this field.");
+            interactionText.color = Color.red;
+            Debug.Log($"<color=green>[InteractionUI]</color> Berhasil memulihkan 'interactionText' dari child component: {interactionText.gameObject.name}");
         }
         else
         {
-            interactionText.color = Color.red;
+            Debug.LogError("<color=red>[InteractionUI]</color> 'interactionText' tidak di-assign di Inspector dan tidak ditemukan di children!");
         }
-        // Pastikan teks mati saat awal game
-        HideText();
     }
 
     // Fungsi untuk menampilkan teks
     public void ShowText(string message)
     {
+        EnsureInteractionText();
         if (interactionText != null)
         {
             interactionText.text = message;
             interactionText.gameObject.SetActive(true);
-
-            // Print a debug message to help figure out why it might be invisible
-            if (!interactionText.gameObject.activeInHierarchy)
-            {
-                Debug.LogWarning($"<color=yellow>[InteractionUI]</color> Set text to '{message}', but the text GameObject is INACTIVE in the hierarchy. Check if its parent Canvas or parent GameObject is disabled!");
-            }
-            else
-            {
-                Debug.Log($"<color=green>[InteractionUI]</color> Prompt visible: '{message}'");
-            }
-        }
-        else
-        {
-            Debug.LogError("<color=red>[InteractionUI]</color> Cannot show text because 'interactionText' is null! Check Inspector settings on " + gameObject.name);
         }
     }
 
     // Fungsi untuk menyembunyikan teks
     public void HideText()
     {
+        EnsureInteractionText();
         if (interactionText != null)
         {
             interactionText.gameObject.SetActive(false);
-            Debug.Log("<color=white>[InteractionUI]</color> Prompt hidden");
         }
     }
 

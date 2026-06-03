@@ -228,6 +228,9 @@ public class SettingsUI : MonoBehaviour
         settingsPanel.SetActive(true);
         LoadCurrentSettings();
         Time.timeScale = 0f;
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     public void CloseSettings()
@@ -236,6 +239,9 @@ public class SettingsUI : MonoBehaviour
         SaveSettings();
         settingsPanel.SetActive(false);
         Time.timeScale = 1f;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     public void ToggleSettings()

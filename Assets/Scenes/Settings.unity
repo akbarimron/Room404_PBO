@@ -2928,7 +2928,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.01
   far clip plane: 534.51
   field of view: 60.000004
   orthographic: 0
@@ -5057,7 +5057,7 @@ Light:
   serializedVersion: 12
   m_Type: 0
   m_Color: {r: 1, g: 0.9979432, b: 0.995283, a: 1}
-  m_Intensity: 66.49
+  m_Intensity: 30
   m_Range: 61.35027
   m_SpotAngle: 49.210785
   m_InnerSpotAngle: 24.1861
@@ -6751,7 +6751,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1457062356}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -6818,10 +6818,10 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
-  m_Size: {x: 1.0000001, y: 2, z: 1.0000001}
-  m_Center: {x: 0, y: 0, z: 0.0000019073486}
+  m_Size: {x: 1.0000001, y: 0.57, z: 1.0000001}
+  m_Center: {x: 0, y: 0.82, z: 0.0000019073486}
 --- !u!1 &1457066236
 GameObject:
   m_ObjectHideFlags: 0
