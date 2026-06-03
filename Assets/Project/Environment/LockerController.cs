@@ -19,7 +19,16 @@ public class LockerController : MonoBehaviour
     private GameObject hidingPlayer;
     private bool isTransitioning = false;
 
+    public bool IsOccupied => isOccupied;
     public string Prompt => isOccupied ? exitPrompt : hidePrompt;
+
+    public void ForceEject()
+    {
+        if (isOccupied && !isTransitioning)
+        {
+            StartCoroutine(ExitLocker());
+        }
+    }
 
     void Update()
     {
@@ -76,8 +85,10 @@ public class LockerController : MonoBehaviour
 
         // Determine targets
         Vector3 targetPos = hidingSpot != null ? hidingSpot.position : transform.position;
-        // Face the locker door (which is transform.rotation/forward)
-        Quaternion targetRot = hidingSpot != null ? hidingSpot.rotation : transform.rotation;
+        
+        // Create a clean level rotation (0 pitch/roll) facing the locker door (270 degrees from locker rotation to face the exit door)
+        float lockerYaw = transform.eulerAngles.y;
+        Quaternion targetRot = Quaternion.Euler(0f, lockerYaw + 270f, 0f);
 
         float elapsed = 0f;
         Vector3 startPos = player.transform.position;
@@ -117,6 +128,14 @@ public class LockerController : MonoBehaviour
 
         isTransitioning = true;
 
+        // Restore tag and hiding state immediately at the start of exit
+        hidingPlayer.tag = "Player";
+        PlayerHealth health = hidingPlayer.GetComponent<PlayerHealth>();
+        if (health != null)
+        {
+            health.isHiding = false;
+        }
+
         // Hide interaction text prompt
         if (InteractionUI.Instance != null)
         {
@@ -127,12 +146,12 @@ public class LockerController : MonoBehaviour
         mouselook look = hidingPlayer.GetComponentInChildren<mouselook>();
         if (look != null) look.enabled = false;
 
-        // Determine target position and make sure it faces away from the locker (which is transform.rotation)
+        // Determine target position and make sure it faces away from the locker
         Vector3 targetPos = exitSpot != null ? exitSpot.position : (transform.position + transform.forward * 1.2f);
-        Quaternion targetRot = exitSpot != null ? exitSpot.rotation : transform.rotation;
         
-        // Rotate 180 degrees so player faces away from the locker
-        targetRot = targetRot * Quaternion.Euler(0f, 180f, 0f);
+        // Create a clean level rotation (0 pitch/roll) facing the room (270 degrees from locker rotation)
+        float lockerYaw = transform.eulerAngles.y;
+        Quaternion targetRot = Quaternion.Euler(0f, lockerYaw + 270f, 0f);
 
         float elapsed = 0f;
         Vector3 startPos = hidingPlayer.transform.position;
@@ -149,9 +168,6 @@ public class LockerController : MonoBehaviour
         hidingPlayer.transform.position = targetPos;
         hidingPlayer.transform.rotation = targetRot;
 
-        // Restore tag
-        hidingPlayer.tag = "Player";
-
         // Re-enable components
         PlayerMovement movement = hidingPlayer.GetComponent<PlayerMovement>();
         CharacterController controller = hidingPlayer.GetComponent<CharacterController>();
@@ -165,13 +181,6 @@ public class LockerController : MonoBehaviour
             look.DisableHidingClamp();
             look.SetRotation(0f, targetRot.eulerAngles.y);
             look.enabled = true;
-        }
-
-        // Clear hiding state on PlayerHealth
-        PlayerHealth health = hidingPlayer.GetComponent<PlayerHealth>();
-        if (health != null)
-        {
-            health.isHiding = false;
         }
 
         hidingPlayer = null;

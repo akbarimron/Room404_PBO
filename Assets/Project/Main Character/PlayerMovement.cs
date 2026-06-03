@@ -9,6 +9,12 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float sprintSpeed = 10f;
     [SerializeField] private CharacterController controller;
 
+    [Header("Crouch Settings")]
+    [SerializeField] private float crouchSpeed = 2.2f;
+    [SerializeField] private float crouchHeight = 1.0f;
+    private float standingHeight = 2.0f;
+    private bool isCrouching = false;
+
     [Header("UI Reference")]
     [SerializeField] private Slider staminaBar;
     [SerializeField] private SettingsUI settingsUI;
@@ -22,6 +28,10 @@ public class PlayerMovement : MonoBehaviour
     
     private float currentStamina;
     private bool isExhausted = false; // Status jika stamina benar-benar habis
+
+    public bool IsSprinting => currentSpeed == sprintSpeed && isMoving;
+    public bool IsWalking => currentSpeed == walkSpeed && isMoving;
+    public bool IsCrouching => isCrouching;
 
     [Header("Jump")]
     [SerializeField] private float jumpForce = 5f;
@@ -65,6 +75,8 @@ public class PlayerMovement : MonoBehaviour
 
         if (controller == null)
             controller = GetComponent<CharacterController>();
+
+        standingHeight = controller != null ? controller.height : 2.0f;
 
         if (controller != null)
         {
@@ -185,13 +197,43 @@ public class PlayerMovement : MonoBehaviour
 
         isMoving = (moveZ != 0 || moveX != 0) && isGrounded;
 
+        // Tombol jongkok (Ctrl kiri atau C)
+        bool crouchInput = keyboard.ctrlKey.isPressed || keyboard.cKey.isPressed;
+        isCrouching = crouchInput && isGrounded;
+
+        if (isCrouching)
+        {
+            controller.height = crouchHeight;
+            controller.center = new Vector3(0f, crouchHeight / 2f, 0f);
+        }
+        else
+        {
+            controller.height = standingHeight;
+            controller.center = new Vector3(0f, standingHeight / 2f, 0f);
+        }
+
+        // Sesuaikan tinggi kamera saat jongkok secara halus
+        if (mainCamera != null)
+        {
+            float targetCamY = isCrouching ? cameraOriginalPos.y - 0.7f : cameraOriginalPos.y;
+            Vector3 targetCamPos = new Vector3(cameraOriginalPos.x, targetCamY, cameraOriginalPos.z);
+            mainCamera.localPosition = Vector3.Lerp(mainCamera.localPosition, targetCamPos, Time.deltaTime * 8f);
+        }
+
         // Logika Sprinting dengan pengecekan stamina
         bool isSprintInput = keyboard.leftShiftKey.isPressed;
         
-        // Pemain hanya bisa lari jika: mencet shift, lagi gerak, tidak lelah (exhausted), dan stamina > 0
-        bool canSprint = isSprintInput && isMoving && !isExhausted && currentStamina > 0;
+        // Pemain hanya bisa lari jika: mencet shift, lagi gerak, tidak lelah (exhausted), dan stamina > 0, serta tidak sedang jongkok
+        bool canSprint = isSprintInput && isMoving && !isExhausted && currentStamina > 0 && !isCrouching;
 
-        currentSpeed = canSprint ? sprintSpeed : walkSpeed;
+        if (isCrouching)
+        {
+            currentSpeed = crouchSpeed;
+        }
+        else
+        {
+            currentSpeed = canSprint ? sprintSpeed : walkSpeed;
+        }
 
         Vector3 horizontalMove = (transform.forward * moveZ + transform.right * moveX).normalized * currentSpeed;
         Vector3 move = horizontalMove;
@@ -325,17 +367,19 @@ public class PlayerMovement : MonoBehaviour
 
         if (isMoving)
         {
-            // Mempercepat bobbing saat lari
-            float speedMultiplier = (currentSpeed == sprintSpeed) ? 1.5f : 1f;
+            // Mempercepat bobbing saat lari, melambat saat jongkok
+            float speedMultiplier = (currentSpeed == sprintSpeed) ? 1.5f : (isCrouching ? 0.5f : 1f);
             bobTimer += Time.deltaTime * (bobSpeed * speedMultiplier);
             
-            float bobY = Mathf.Sin(bobTimer) * bobAmount;
-            mainCamera.localPosition = cameraOriginalPos + new Vector3(0, bobY, 0);
+            float bobY = Mathf.Sin(bobTimer) * (isCrouching ? bobAmount * 0.4f : bobAmount);
+            float currentCamY = isCrouching ? cameraOriginalPos.y - 0.7f : cameraOriginalPos.y;
+            mainCamera.localPosition = new Vector3(cameraOriginalPos.x, currentCamY + bobY, cameraOriginalPos.z);
         }
         else
         {
             bobTimer = 0f;
-            mainCamera.localPosition = Vector3.Lerp(mainCamera.localPosition, cameraOriginalPos, Time.deltaTime * 5f);
+            float currentCamY = isCrouching ? cameraOriginalPos.y - 0.7f : cameraOriginalPos.y;
+            mainCamera.localPosition = Vector3.Lerp(mainCamera.localPosition, new Vector3(cameraOriginalPos.x, currentCamY, cameraOriginalPos.z), Time.deltaTime * 5f);
         }
     }
 

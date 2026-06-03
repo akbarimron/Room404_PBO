@@ -68,6 +68,19 @@ public class CenterCursor : MonoBehaviour
         img.raycastTarget = false;
     }
 
+    void Update()
+    {
+        if (Input.GetMouseButtonDown(0))
+        {
+            SettingsUI ui = FindFirstObjectByType<SettingsUI>();
+            if (ui == null || !ui.IsSettingsOpen())
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+        }
+    }
+
     void OnDestroy()
     {
         Cursor.lockState = CursorLockMode.None;
