@@ -1,5 +1,3 @@
-#if false // Disabled until Dreamteck Splines package is imported in the project
-
 using UnityEngine;
 using Dreamteck.Splines; // Wajib diisi agar script mengenali package Dreamteck
 
@@ -73,5 +71,3 @@ public class SplineNPCBrain : MonoBehaviour
         isIdling = false;
     }
 }
-
-#endif

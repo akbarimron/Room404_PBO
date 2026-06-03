@@ -67,6 +67,17 @@ public class PlayerMovement : MonoBehaviour
     private Collider activeStair;
     private float lastStairContactTime = -1f;
 
+    [Header("Footstep Audio Settings")]
+    public AudioSource audioSource;       
+    public AudioClip walkSound;           
+    public AudioClip runSound;            
+    
+    public float walkStepInterval = 0.5f; 
+    public float runStepInterval = 0.3f;  
+
+    private float footstepTimer = 0f;
+    private bool isRunning;
+
     void Start()
     {
         currentStamina = maxStamina;
@@ -126,6 +137,7 @@ public class PlayerMovement : MonoBehaviour
         HandleStamina();
         UpdateCameraBob();
         UpdateUI();
+        HandleFootsteps();
     }
 
     void ApplyRuntimeSettings()
@@ -234,6 +246,9 @@ public class PlayerMovement : MonoBehaviour
         {
             currentSpeed = canSprint ? sprintSpeed : walkSpeed;
         }
+
+        // Tambahkan baris ini agar variabel global isRunning tahu kapan player sedang lari
+        isRunning = canSprint;
 
         Vector3 horizontalMove = (transform.forward * moveZ + transform.right * moveX).normalized * currentSpeed;
         Vector3 move = horizontalMove;
@@ -474,5 +489,48 @@ public class PlayerMovement : MonoBehaviour
         }
 
         Debug.Log("Minuman dikonsumsi! Stamina saat ini: " + Mathf.RoundToInt(currentStamina));
+    }
+
+    void HandleFootsteps()
+    {
+        // 1. Pastikan Player berada di tanah (Grounded) dan sedang bergerak
+        if (!isMoving) 
+        {
+            footstepTimer = 0f; // Reset timer jika player diam
+            
+            // TAMBAHAN: Jika player tiba-tiba berhenti, langsung matikan suara 7 detik tadi
+            if (audioSource.isPlaying)
+            {
+                audioSource.Stop();
+            }
+            return;
+        }
+
+        // 2. Jalankan timer langkah kaki
+        footstepTimer -= Time.deltaTime;
+
+        // 3. Jika timer habis, bunyikan suara langkah
+        if (footstepTimer <= 0f)
+        {
+            // Tentukan klip suara dan jeda waktu berdasarkan status lari/jalan
+            if (isRunning)
+            {
+                audioSource.clip = runSound;
+                footstepTimer = runStepInterval;
+            }
+            else
+            {
+                audioSource.clip = walkSound;
+                footstepTimer = walkStepInterval;
+            }
+
+            // TAMBAHAN: Hentikan audio yang sedang berjalan sebelum memutar yang baru
+            // Ini akan mencegah suara bertumpuk dan menumpuk di memori
+            audioSource.Stop(); 
+
+            // Mainkan suaranya dengan variasi pitch sedikit agar tidak monoton
+            audioSource.pitch = Random.Range(0.9f, 1.1f);
+            audioSource.Play();
+        }
     }
 }
