@@ -5324,6 +5324,8 @@ MonoBehaviour:
   walkSpeed: 5
   sprintSpeed: 10
   controller: {fileID: 0}
+  crouchSpeed: 2.2
+  crouchHeight: 1
   staminaBar: {fileID: 1342346793499832525}
   settingsUI: {fileID: 0}
   maxStamina: 100

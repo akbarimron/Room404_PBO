@@ -1,63 +1,38 @@
 using UnityEngine;
-using UnityEngine.UI;
-using System.Collections;
 using UnityEngine.SceneManagement;
 
 public class PlayerHealth : MonoBehaviour
 {
-    [Header("Health Settings")]
-    public int maxHealth = 3;
-    private int currentHealth;
+    [SerializeField] private string deathSceneName = "deathScene";
+
+    [Header("Dramatic Effects Settings")]
+    [SerializeField] private float shakeDuration = 0.5f; 
+    [SerializeField] private float shakeMagnitude = 0.2f; 
+    private CameraShake cameraShake; 
+
+    private CharacterController controller;
+    private PlayerMovement playerMovement; 
     private bool isDead = false;
     [HideInInspector] public bool isHiding = false;
 
-    [Header("Respawn Settings")]
-    private Vector3 spawnPoint = new Vector3(28.5f, 0.36f, -27.78f);
-    [SerializeField] private string deathSceneName = "deathScene";
-
-    [Header("UI Reference")]
-    public Image[] hearts;
-
-    [Header("Dramatic Effects Settings")]
-    [SerializeField] private float shakeDuration = 0.5f; // Durasi kamera goyang
-    [SerializeField] private float shakeMagnitude = 0.2f; // Kekuatan goyangan kamera
-    private CameraShake cameraShake; // Referensi ke script shake
-
-    private CharacterController controller;
-    private PlayerMovement playerMovement; // Tambahan dari perbaikan sebelumnya
-
     void Start()
     {
-        currentHealth = maxHealth;
         controller = GetComponent<CharacterController>();
         playerMovement = GetComponent<PlayerMovement>();
-
-        // Otomatis mencari script CameraShake di Main Camera milik Player
         cameraShake = GetComponentInChildren<CameraShake>();
 
-        UpdateHealthUI();
+        // Set awal jatah tengkorak ke angka 3 jika baru pertama kali bermain
+        if (!PlayerPrefs.HasKey("PlayerLives"))
+        {
+            PlayerPrefs.SetInt("PlayerLives", 3);
+            PlayerPrefs.Save();
+        }
     }
 
     public void TakeDamage(int damage)
     {
         if (isDead) return;
-
-        currentHealth -= damage;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-        UpdateHealthUI();
-
-        if (currentHealth <= 0)
-        {
-            Die();
-        }
-    }
-
-    void UpdateHealthUI()
-    {
-        for (int i = 0; i < hearts.Length; i++)
-        {
-            hearts[i].enabled = (i < currentHealth);
-        }
+        Die();
     }
 
     void Die()
@@ -65,37 +40,20 @@ public class PlayerHealth : MonoBehaviour
         isDead = true;
         Debug.Log("Player Mati!");
 
-        // MEMBUAT GAME JADI SLOW MOTION (Waktu berjalan 30% dari normal)
-        Time.timeScale = 0.3f;
+        // Kurangi tengkorak sebanyak 1
+        int currentSkulls = PlayerPrefs.GetInt("PlayerLives", 3);
+        currentSkulls--;
+        PlayerPrefs.SetInt("PlayerLives", currentSkulls);
+        PlayerPrefs.Save();
 
-        if (cameraShake != null)
-        {
-            cameraShake.Shake(shakeDuration, shakeMagnitude);
-        }
+        // Berikan efek guncangan kamera sebelum pindah scene
+        if (cameraShake != null) cameraShake.Shake(shakeDuration, shakeMagnitude);
 
+        // Matikan kontrol pergerakan
         if (controller != null) controller.enabled = false;
         if (playerMovement != null) playerMovement.enabled = false;
 
-        SceneManager.LoadScene(deathSceneName, LoadSceneMode.Additive);
-        StartCoroutine(RespawnProcess());
-    }
-
-    IEnumerator RespawnProcess()
-    {
-        yield return new WaitForSecondsRealtime(4f);
-        Time.timeScale = 1.0f;
-        SceneManager.UnloadSceneAsync(deathSceneName);
-
-        transform.position = spawnPoint;
-        yield return null;
-
-        currentHealth = maxHealth;
-        isDead = false;
-        UpdateHealthUI();
-
-        if (controller != null) controller.enabled = true;
-        if (playerMovement != null) playerMovement.enabled = true;
-
-        Debug.Log("Player telah Respawn!");
+        // Buka deathScene secara Single (membersihkan total scene INSIDE KOS dari Hierarchy)
+        SceneManager.LoadScene(deathSceneName, LoadSceneMode.Single);
     }
 }
