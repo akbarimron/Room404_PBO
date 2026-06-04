@@ -2697,6 +2697,63 @@ MonoBehaviour:
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
+--- !u!1 &625769317
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 625769319}
+  - component: {fileID: 625769318}
+  m_Layer: 0
+  m_Name: JumpscareManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &625769318
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 625769317}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 30ba1c6ca847807469b7829649fe6a17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::JumpscareManager
+  flashOverlay: {fileID: 0}
+  ghostFaceImage: {fileID: 0}
+  flashInDuration: 0.06
+  faceDuration: 0.9
+  faceOutDuration: 0.35
+  flickerCount: 6
+  flickerInterval: 0.09
+  flickerAlpha: 0.85
+  flickerColor: {r: 0, g: 0, b: 0, a: 1}
+  faceStartScale: 0.5
+  faceEndScale: 1.1
+  jumpscareAudio: {fileID: 0}
+  totalFreezeDuration: 3.5
+--- !u!4 &625769319
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 625769317}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 26.13527, y: 0.05, z: -29.93006}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &628143714
 GameObject:
   m_ObjectHideFlags: 0
@@ -3031,9 +3088,17 @@ MonoBehaviour:
   m_GameObject: {fileID: 648834342}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4800b02e68cb18d4692b5f2dc35901ee, type: 3}
+  m_Script: {fileID: 11500000, guid: 1cc641c98eb8cca41ab07ec3db4cc81d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraShake
+  effectDistance: 12
+  maxShakePosition: 0.01
+  maxShakeRotation: 0.8
+  maxFovJitter: 2
+  distortionSpeed: 10
+  desaturationShader: {fileID: 0}
+  targetDesaturation: 0.942
+  targetDistortion: 0.01
 --- !u!114 &648834349
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5300,7 +5365,7 @@ Transform:
   m_GameObject: {fileID: 1201779993}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.5649654, z: -0, w: 0.82511467}
-  m_LocalPosition: {x: 29.66526, y: 0.3599999, z: -12.598483}
+  m_LocalPosition: {x: 2.1000004, y: 0.3599999, z: -12.598483}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -5324,6 +5389,8 @@ MonoBehaviour:
   walkSpeed: 5
   sprintSpeed: 10
   controller: {fileID: 0}
+  crouchSpeed: 2.2
+  crouchHeight: 1
   staminaBar: {fileID: 1342346793499832525}
   settingsUI: {fileID: 0}
   maxStamina: 100
@@ -5352,7 +5419,7 @@ MonoBehaviour:
   mainCamera: {fileID: 648834345}
   bobSpeed: 8
   bobAmount: 0.1
-  audioSource: {fileID: 1332567372}
+  audioSource: {fileID: 0}
   walkSound: {fileID: 8300000, guid: 6ba4d30b94da6d04ba93a7846501fe7c, type: 3}
   runSound: {fileID: 8300000, guid: 79b3fecf307717f44a341a43f16ed92f, type: 3}
   walkStepInterval: 0.5
@@ -9319,6 +9386,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1738023950}
     m_Modifications:
+    - target: {fileID: 829387866076368284, guid: 32e42ccef884e4a44a5ce0f0462b94a0, type: 3}
+      propertyPath: interactionText
+      value: 
+      objectReference: {fileID: 0}
     - target: {fileID: 2285032094094394011, guid: 32e42ccef884e4a44a5ce0f0462b94a0, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -9490,3 +9561,4 @@ SceneRoots:
   - {fileID: 1740577652}
   - {fileID: 1770056018}
   - {fileID: 2145606868}
+  - {fileID: 625769319}

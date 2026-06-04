@@ -44,6 +44,11 @@ public class PlayerInteractionBootstrapper : MonoBehaviour
             {
                 targetObj.AddComponent<FlashlightController>();
             }
+
+            if (targetObj.GetComponent<PlayerGhostEffect>() == null && Object.FindFirstObjectByType<PlayerGhostEffect>() == null)
+            {
+                targetObj.AddComponent<PlayerGhostEffect>();
+            }
         }
     }
 }

@@ -78,6 +78,35 @@ public class PlayerMovement : MonoBehaviour
     private float footstepTimer = 0f;
     private bool isRunning;
 
+    void Awake()
+    {
+        if (GetComponent<PlayerHealth>() == null)
+        {
+            gameObject.AddComponent<PlayerHealth>();
+            Debug.Log("<color=green>[PlayerMovement]</color> Added missing PlayerHealth component dynamically.");
+        }
+
+        if (GetComponent<InventoryManager>() == null)
+        {
+            gameObject.AddComponent<InventoryManager>();
+            Debug.Log("<color=green>[PlayerMovement]</color> Added missing InventoryManager component dynamically.");
+        }
+
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+                Debug.Log("<color=green>[PlayerMovement]</color> Added missing AudioSource component dynamically.");
+            }
+            else
+            {
+                Debug.Log("<color=green>[PlayerMovement]</color> Dynamically bound existing AudioSource component.");
+            }
+        }
+    }
+
     void Start()
     {
         currentStamina = maxStamina;
@@ -499,7 +528,7 @@ public class PlayerMovement : MonoBehaviour
             footstepTimer = 0f; // Reset timer jika player diam
             
             // TAMBAHAN: Jika player tiba-tiba berhenti, langsung matikan suara 7 detik tadi
-            if (audioSource.isPlaying)
+            if (audioSource != null && audioSource.isPlaying)
             {
                 audioSource.Stop();
             }
@@ -515,22 +544,22 @@ public class PlayerMovement : MonoBehaviour
             // Tentukan klip suara dan jeda waktu berdasarkan status lari/jalan
             if (isRunning)
             {
-                audioSource.clip = runSound;
+                if (audioSource != null) audioSource.clip = runSound;
                 footstepTimer = runStepInterval;
             }
             else
             {
-                audioSource.clip = walkSound;
+                if (audioSource != null) audioSource.clip = walkSound;
                 footstepTimer = walkStepInterval;
             }
 
             // TAMBAHAN: Hentikan audio yang sedang berjalan sebelum memutar yang baru
-            // Ini akan mencegah suara bertumpuk dan menumpuk di memori
-            audioSource.Stop(); 
-
-            // Mainkan suaranya dengan variasi pitch sedikit agar tidak monoton
-            audioSource.pitch = Random.Range(0.9f, 1.1f);
-            audioSource.Play();
+            if (audioSource != null && audioSource.clip != null)
+            {
+                audioSource.Stop(); 
+                audioSource.pitch = Random.Range(0.9f, 1.1f);
+                audioSource.Play();
+            }
         }
     }
 }

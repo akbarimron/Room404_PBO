@@ -80,21 +80,80 @@ public class GhostAI : MonoBehaviour
     private float currentInvestigateSpeed;
 
     [Header("Audio Settings")]
-    [SerializeField] private AudioSource ambientAudioSource; // Suara ambient/idle hantu (3D, loop)
-    [SerializeField] private AudioSource chaseAudioSource;   // Musik kejar (2D/3D, loop)
-    [SerializeField] private AudioSource footstepAudioSource; // Suara langkah kaki hantu (3D)
-    [SerializeField] private AudioClip[] footstepClips;      // Pilihan suara langkah kaki
-    [SerializeField] private float walkFootstepInterval = 0.6f; // Jeda langkah saat jalan
-    [SerializeField] private float runFootstepInterval = 0.35f;  // Jeda langkah saat lari
+    [SerializeField] private AudioSource idleMusicAudioSource;  // BG music game biasa (2D, loop)
+    [SerializeField] private AudioSource chaseMusicAudioSource; // BG music saat dikejar (2D, loop)
+    [SerializeField] private AudioSource ghostSoundAudioSource; // Suara idle hantu (3D, loop)
+    [SerializeField] private AudioSource screamAudioSource;     // Teriakan hantu saat melihat/dengar player (3D)
+    [SerializeField] private AudioSource jumpscareAudioSource;  // Suara jumpscare saat menangkap player (2D/3D)
+    [SerializeField] private AudioSource footstepAudioSource;   // Suara langkah kaki hantu (3D)
+    [SerializeField] private AudioClip[] footstepClips;         // Audio clip langkah kaki hantu
+    [SerializeField] private float walkFootstepInterval = 0.6f;
+    [SerializeField] private float runFootstepInterval = 0.35f;
     private float footstepTimer = 0f;
+    private float lastScreamTime = -10f;
+    private const float SCREAM_COOLDOWN = 8f;
+    private System.Collections.Generic.List<InteractiveDoor> doorsOpenedByGhost = new System.Collections.Generic.List<InteractiveDoor>();
+    private AudioLowPassFilter ghostSoundLowPass;
+
+
 
 
     void Start()
     {
+#if UNITY_EDITOR
+        if (idleMusicAudioSource != null && idleMusicAudioSource.clip == null)
+            idleMusicAudioSource.clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/idleMusic.mp3");
+            
+        if (chaseMusicAudioSource != null && chaseMusicAudioSource.clip == null)
+            chaseMusicAudioSource.clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/chaseMusic.mp3");
+            
+        if (ghostSoundAudioSource != null && ghostSoundAudioSource.clip == null)
+            ghostSoundAudioSource.clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/ghostSound.mp3");
+            
+        if (screamAudioSource != null && screamAudioSource.clip == null)
+            screamAudioSource.clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/ghostScream.mp3");
+            
+        if (jumpscareAudioSource != null && jumpscareAudioSource.clip == null)
+            jumpscareAudioSource.clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/jumpscare.mp3");
+#endif
+
+        if (ghostSoundAudioSource != null)
+        {
+            ghostSoundAudioSource.spatialBlend = 1.0f; // 3D sound
+            ghostSoundAudioSource.minDistance = 4.0f;  // Keep full volume up to 4 meters
+            ghostSoundAudioSource.maxDistance = 20.0f; // Linear range: complete silence at 20 meters
+            ghostSoundAudioSource.rolloffMode = AudioRolloffMode.Linear; // Linear attenuation for reliable gameplay audibility
+            ghostSoundAudioSource.loop = true;
+
+            // Pre-add/get AudioLowPassFilter to prevent component lookup/creation in Update loop
+            ghostSoundLowPass = ghostSoundAudioSource.GetComponent<AudioLowPassFilter>();
+            if (ghostSoundLowPass == null)
+            {
+                ghostSoundLowPass = ghostSoundAudioSource.gameObject.AddComponent<AudioLowPassFilter>();
+            }
+            ghostSoundLowPass.cutoffFrequency = 22000f; // Start fully open
+        }
+
+        if (screamAudioSource != null)
+        {
+            screamAudioSource.playOnAwake = false;
+            screamAudioSource.spatialBlend = 1.0f;
+            screamAudioSource.minDistance = 5.0f;
+            screamAudioSource.maxDistance = 45.0f;
+            screamAudioSource.rolloffMode = AudioRolloffMode.Linear;
+        }
+
+        if (jumpscareAudioSource != null)
+        {
+            jumpscareAudioSource.playOnAwake = false;
+            jumpscareAudioSource.spatialBlend = 0.0f; // 2D Full impact jumpscare
+        }
+
         // Paksa nilai vision diperjauh dan waktu tunggu minimal agar terus berjalan
         viewDistance = 100f;
         minWanderWaitTime = 0f;
         maxWanderWaitTime = 0.5f;
+
 
         spawnPosition = transform.position;
         agent = GetComponent<NavMeshAgent>();
@@ -205,15 +264,31 @@ public class GhostAI : MonoBehaviour
             float distanceToPlayer = Vector3.Distance(transform.position, player.position);
             bool canSeeLocker = false;
             
-            // Cek raycast apakah pandangan ke loker bersih (tidak terhalang tembok)
+            // Cek raycast apakah pandangan ke loker bersih (tidak terhalang tembok/pintu)
             Vector3 startPos = transform.position + Vector3.up * eyeHeight;
             Vector3 endPos = player.position + Vector3.up * 1.0f;
-            RaycastHit hit;
-            if (!Physics.Linecast(startPos, endPos, out hit, obstacleMask))
+            
+            Vector3 dir = endPos - startPos;
+            float dist = dir.magnitude;
+            RaycastHit[] hits = Physics.RaycastAll(startPos, dir.normalized, dist, obstacleMask);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            
+            bool obstructed = false;
+            foreach (var h in hits)
             {
-                canSeeLocker = true;
+                if (h.collider.transform.root == transform.root)
+                    continue;
+                    
+                if (h.collider.CompareTag("Player") || h.collider.transform.root == player.root || h.collider.GetComponentInParent<LockerController>() != null)
+                {
+                    break;
+                }
+                
+                obstructed = true;
+                break;
             }
-            else if (hit.collider.CompareTag("Player") || hit.collider.transform.root == player.root || hit.collider.GetComponentInParent<LockerController>() != null)
+            
+            if (!obstructed)
             {
                 canSeeLocker = true;
             }
@@ -222,11 +297,11 @@ public class GhostAI : MonoBehaviour
             {
                 if (currentState == GhostState.Chasing && distanceToPlayer <= 6.0f)
                 {
-                    StartInvestigating(player.position, true);
+                    StartInvestigating(player.position, true, chaseSpeed); // RUN to eject!
                 }
                 else if (currentState == GhostState.Wandering && distanceToPlayer <= 4.0f)
                 {
-                    StartInvestigating(player.position, false);
+                    StartInvestigating(player.position, false, wanderSpeed); // Walk to investigate if just wandering
                 }
             }
         }
@@ -252,16 +327,20 @@ public class GhostAI : MonoBehaviour
                 }
                 else if (pm.IsWalking)
                 {
-                    // Hanya investigasi jika sedang Wandering, atau jika sedang berjalan menginvestigasi suara langkah sebelumnya dengan cooldown 2.0 detik
-                    // (Jangan batalkan investigasi lari yang sedang aktif)
-                    bool isSprintingInvestigationActive = currentState == GhostState.Investigating && currentInvestigateSpeed == chaseSpeed;
-                    if (!isSprintingInvestigationActive)
+                    float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+                    if (distanceToPlayer <= walkHearingRange)
                     {
-                        if (currentState == GhostState.Wandering || (currentState == GhostState.Investigating && Time.time - lastWalkHearTime >= 2.0f))
+                        // Hanya investigasi jika sedang Wandering, atau jika sedang berjalan menginvestigasi suara langkah sebelumnya dengan cooldown 2.0 detik
+                        // (Jangan batalkan investigasi lari yang sedang aktif)
+                        bool isSprintingInvestigationActive = currentState == GhostState.Investigating && currentInvestigateSpeed == chaseSpeed;
+                        if (!isSprintingInvestigationActive)
                         {
-                            lastWalkHearTime = Time.time;
-                            Debug.Log("<color=yellow>[GhostAI-Hearing]</color> Hantu mendengar langkah jalan player dari kejauhan. Berjalan pelan ke lokasi suara.");
-                            StartInvestigating(player.position, false, wanderSpeed); // ejectPlayer = false (aman di loker), speed = wanderSpeed
+                            if (currentState == GhostState.Wandering || (currentState == GhostState.Investigating && Time.time - lastWalkHearTime >= 2.0f))
+                            {
+                                lastWalkHearTime = Time.time;
+                                Debug.Log($"<color=yellow>[GhostAI-Hearing]</color> Hantu mendengar langkah jalan player di dekatnya ({distanceToPlayer:F1}m). Berjalan pelan ke lokasi suara.");
+                                StartInvestigating(player.position, false, wanderSpeed); // ejectPlayer = false (aman di loker), speed = wanderSpeed
+                            }
                         }
                     }
                 }
@@ -304,24 +383,52 @@ public class GhostAI : MonoBehaviour
 
     private void CheckAndOpenDoors()
     {
-        // Deteksi collider pintu di depan hantu (maju 0.6m dari pusat, tinggi 1.0m, radius deteksi 1.2m)
+        // 1. Deteksi dan buka pintu di depan hantu
         Vector3 checkCenter = transform.position + transform.forward * 0.6f + Vector3.up * 1.0f;
         Collider[] colliders = Physics.OverlapSphere(checkCenter, 1.2f);
 
         foreach (Collider col in colliders)
         {
-            // Cari komponen InteractiveDoor pada collider atau induknya
             InteractiveDoor door = col.GetComponent<InteractiveDoor>();
             if (door == null)
             {
                 door = col.GetComponentInParent<InteractiveDoor>();
             }
 
-            // Jika pintu ditemukan dan dalam keadaan tertutup, suruh hantu membukanya
             if (door != null && !door.IsOpen)
             {
                 door.Toggle(transform);
                 Debug.Log($"<color=orange>[GhostAI]</color> Hantu membuka pintu: {door.gameObject.name}");
+                
+                if (!doorsOpenedByGhost.Contains(door))
+                {
+                    doorsOpenedByGhost.Add(door);
+                }
+            }
+        }
+
+        // 2. Tutup kembali pintu yang sudah dilewati hantu (jarak > 2.8 meter)
+        for (int i = doorsOpenedByGhost.Count - 1; i >= 0; i--)
+        {
+            InteractiveDoor openedDoor = doorsOpenedByGhost[i];
+            if (openedDoor == null)
+            {
+                doorsOpenedByGhost.RemoveAt(i);
+                continue;
+            }
+
+            if (!openedDoor.IsOpen)
+            {
+                doorsOpenedByGhost.RemoveAt(i);
+                continue;
+            }
+
+            float distanceToDoor = Vector3.Distance(transform.position, openedDoor.transform.position);
+            if (distanceToDoor > 2.8f)
+            {
+                openedDoor.Toggle(transform);
+                Debug.Log($"<color=orange>[GhostAI]</color> Hantu menutup kembali pintu yang dilewati: {openedDoor.gameObject.name}");
+                doorsOpenedByGhost.RemoveAt(i);
             }
         }
     }
@@ -509,7 +616,7 @@ public class GhostAI : MonoBehaviour
         // Jika player bersembunyi di locker, mulai penyelidikan di area terakhir player terlihat
         if (isPlayerHiding)
         {
-            StartInvestigating(player.position);
+            StartInvestigating(player.position, false, chaseSpeed); // RUN to investigate!
             return;
         }
 
@@ -526,6 +633,10 @@ public class GhostAI : MonoBehaviour
 
     private void StartChase()
     {
+        if (currentState != GhostState.Chasing)
+        {
+            PlayScream();
+        }
         currentState = GhostState.Chasing;
         hasWanderTarget = false;
         isFollowingWaypoints = false;
@@ -536,14 +647,23 @@ public class GhostAI : MonoBehaviour
 
     private void StartInvestigating(Vector3 lastKnownPos, bool ejectPlayer = false, float customSpeed = -1f)
     {
+        currentInvestigateSpeed = customSpeed >= 0f ? customSpeed : investigateSpeed;
+        bool isRunningNoise = currentInvestigateSpeed >= chaseSpeed - 0.5f;
+
+        bool isAlreadyRunning = (currentState == GhostState.Chasing) || 
+                                (currentState == GhostState.Investigating && currentInvestigateSpeed >= chaseSpeed - 0.5f);
+
+        if (isRunningNoise && !isAlreadyRunning)
+        {
+            PlayScream();
+        }
+
         currentState = GhostState.Investigating;
         investigatePoint = lastKnownPos;
         hasReachedInvestigatePoint = false;
         investigateWaitTimer = investigateWaitTime;
         shouldEjectPlayer = ejectPlayer;
         stuckTimer = 0f;
-
-        currentInvestigateSpeed = customSpeed >= 0f ? customSpeed : investigateSpeed;
 
         if (agent != null)
         {
@@ -854,9 +974,36 @@ public class GhostAI : MonoBehaviour
         }
     }
 
+    private bool CheckPathClear(Vector3 start, Vector3 target)
+    {
+        Vector3 direction = target - start;
+        float distance = direction.magnitude;
+        Vector3 dirNormalized = direction.normalized;
+
+        RaycastHit[] hits = Physics.RaycastAll(start, dirNormalized, distance, obstacleMask);
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (var hit in hits)
+        {
+            if (hit.collider.transform.root == transform.root)
+                continue;
+
+            if (hit.collider.CompareTag("Player") || hit.collider.transform.root == player.root)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
     private bool CanSeePlayer()
     {
         if (player == null) return false;
+        if (playerHealth != null && playerHealth.isHiding) return false;
+
 
         PlayerMovement pm = player.GetComponent<PlayerMovement>();
         bool isCrouching = pm != null && pm.IsCrouching;
@@ -886,20 +1033,30 @@ public class GhostAI : MonoBehaviour
             Vector3 endChest = player.position + Vector3.up * chestHeight;
             Vector3 endHead = player.position + Vector3.up * headHeight;
 
-            bool canSeeChest = false;
-            bool canSeeHead = false;
-
             // Jika dekat sekali (di bawah 2.5m) dan jongkok, tetap terdeteksi kecuali terhalang dinding/pintu utama
             if (isCloseEnough && isCrouching)
             {
-                RaycastHit hit;
+                Vector3 direction = endHead - startPos;
+                float distance = direction.magnitude;
+                Vector3 dirNormalized = direction.normalized;
+
+                RaycastHit[] hits = Physics.RaycastAll(startPos, dirNormalized, distance, obstacleMask);
+                System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
                 bool hasObstacle = false;
-                if (Physics.Linecast(startPos, endHead, out hit, obstacleMask))
+                foreach (var hit in hits)
                 {
+                    if (hit.collider.transform.root == transform.root)
+                        continue;
+
+                    if (hit.collider.CompareTag("Player") || hit.collider.transform.root == player.root)
+                        break;
+
                     string hitName = hit.collider.gameObject.name.ToLower();
                     if (hitName.Contains("wall") || hitName.Contains("door") || hitName.Contains("partition") || hitName.Contains("floor") || hitName.Contains("ceiling"))
                     {
                         hasObstacle = true;
+                        break;
                     }
                 }
                 
@@ -909,34 +1066,8 @@ public class GhostAI : MonoBehaviour
                 }
             }
 
-            RaycastHit hitChest;
-            if (Physics.Linecast(startPos, endChest, out hitChest, obstacleMask))
-            {
-                if (hitChest.collider.CompareTag("Player") || hitChest.collider.transform.root == player.root)
-                {
-                    canSeeChest = true;
-                }
-            }
-            else
-            {
-                canSeeChest = true;
-            }
-
-            if (!canSeeChest) // Jika dada terhalang (misal oleh sofa), coba cek bagian kepala
-            {
-                RaycastHit hitHead;
-                if (Physics.Linecast(startPos, endHead, out hitHead, obstacleMask))
-                {
-                    if (hitHead.collider.CompareTag("Player") || hitHead.collider.transform.root == player.root)
-                    {
-                        canSeeHead = true;
-                    }
-                }
-                else
-                {
-                    canSeeHead = true;
-                }
-            }
+            bool canSeeChest = CheckPathClear(startPos, endChest);
+            bool canSeeHead = CheckPathClear(startPos, endHead);
 
             if (canSeeChest || canSeeHead)
             {
@@ -1013,40 +1144,255 @@ public class GhostAI : MonoBehaviour
         }
     }
 
-    private void UpdateAudio()
+    private void PlayScream()
     {
-        // 1. Fade Chase Music & Ambient Sound
-        if (chaseAudioSource != null)
+        if (screamAudioSource != null && Time.time - lastScreamTime >= SCREAM_COOLDOWN)
         {
-            float targetVol = (currentState == GhostState.Chasing) ? 1.0f : 0f;
-            
-            // Mulai mainkan jika volume target > 0 dan audio belum aktif
-            if (targetVol > 0f && !chaseAudioSource.isPlaying)
+            lastScreamTime = Time.time;
+            screamAudioSource.Play();
+            Debug.Log("[GhostAI-Audio] Ghost Scream triggered!");
+        }
+    }
+
+    public void TriggerJumpscare()
+    {
+        if (jumpscareAudioSource != null)
+        {
+            jumpscareAudioSource.Play();
+            Debug.Log("[GhostAI-Audio] Jumpscare audio triggered!");
+        }
+    }
+
+    /// <summary>
+    /// Sembunyikan atau tampilkan model/renderer hantu.
+    /// Dipanggil oleh JumpscareManager saat jumpscare berlangsung.
+    /// </summary>
+    public void SetInvisible(bool invisible)
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        foreach (var r in renderers)
+        {
+            r.enabled = !invisible;
+        }
+
+        // Juga disable NavMeshAgent movement saat invisible agar hantu diam
+        if (agent != null)
+        {
+            agent.isStopped = invisible;
+            if (invisible) agent.velocity = Vector3.zero;
+        }
+
+        Debug.Log($"[GhostAI] Ghost {(invisible ? "disembunyikan" : "ditampilkan")} (invisible={invisible})");
+    }
+
+    /// <summary>
+    /// Teleport hantu ke posisi jauh dari player (simulasi lantai 3-4).
+    /// Dicari NavMesh point yang valid minimal 'minDistance' meter dari player,
+    /// dan Y offset lebih tinggi untuk simulasi lantai atas.
+    /// </summary>
+    [Header("Jumpscare Teleport Settings")]
+    [SerializeField] private float jumpscareMinTeleportDistance = 25f;
+    [SerializeField] private float jumpscareYOffset = 8f;  // Tinggi lantai 3-4 (sesuaikan)
+    [SerializeField] private Transform[] jumpscareSpawnPoints; // (Opsional) titik teleport manual
+
+    public void TeleportFarFromPlayer()
+    {
+        if (player == null)
+        {
+            Debug.LogWarning("[GhostAI] Tidak bisa teleport: player reference null.");
+            return;
+        }
+
+        // Prioritas 1: Gunakan spawnPoints manual jika diassign di Inspector
+        if (jumpscareSpawnPoints != null && jumpscareSpawnPoints.Length > 0)
+        {
+            // Pilih spawnPoint yang paling jauh dari player
+            Transform best = null;
+            float bestDist = -1f;
+            foreach (var sp in jumpscareSpawnPoints)
             {
-                chaseAudioSource.volume = 0f;
-                chaseAudioSource.Play();
+                if (sp == null) continue;
+                float d = Vector3.Distance(sp.position, player.position);
+                if (d > bestDist)
+                {
+                    bestDist = d;
+                    best = sp;
+                }
             }
 
-            chaseAudioSource.volume = Mathf.MoveTowards(chaseAudioSource.volume, targetVol, Time.deltaTime * 1.5f);
-
-            // Matikan total jika sudah selesai fade out
-            if (chaseAudioSource.volume <= 0f && chaseAudioSource.isPlaying)
+            if (best != null)
             {
-                chaseAudioSource.Stop();
+                NavMeshHit hit;
+                if (NavMesh.SamplePosition(best.position, out hit, 5f, NavMesh.AllAreas))
+                {
+                    agent.Warp(hit.position);
+                    currentState = GhostState.Wandering;
+                    ChooseNextWanderPoint();
+                    Debug.Log($"[GhostAI] Teleport ke spawnPoint '{best.name}' ({hit.position})");
+                    return;
+                }
             }
         }
 
-        if (ambientAudioSource != null)
+        // Prioritas 2: Cari NavMesh point jauh dari player + Y offset (lantai atas)
+        Vector3 playerPos = player.position;
+        int attempts = 30;
+        float searchRadius = jumpscareMinTeleportDistance * 2f;
+
+        for (int i = 0; i < attempts; i++)
         {
-            float targetVol = (currentState == GhostState.Chasing) ? 0.3f : 1.0f; // Redupkan suara bisikan sedikit jika dikejar
-            
-            if (!ambientAudioSource.isPlaying)
+            // Arah acak, tapi minimal sejauh jumpscareMinTeleportDistance
+            Vector3 randomDir = Random.insideUnitSphere;
+            randomDir.y = 0f;
+            randomDir = randomDir.normalized;
+
+            float distance = Random.Range(jumpscareMinTeleportDistance, jumpscareMinTeleportDistance * 1.8f);
+            Vector3 candidatePos = playerPos + randomDir * distance;
+            candidatePos.y += jumpscareYOffset; // Simulasi lantai atas
+
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(candidatePos, out hit, searchRadius, NavMesh.AllAreas))
             {
-                ambientAudioSource.volume = 0f;
-                ambientAudioSource.Play();
+                float actualDist = Vector3.Distance(hit.position, playerPos);
+                if (actualDist >= jumpscareMinTeleportDistance * 0.5f)
+                {
+                    agent.Warp(hit.position);
+                    currentState = GhostState.Wandering;
+                    ChooseNextWanderPoint();
+                    Debug.Log($"[GhostAI] Teleport jauh berhasil ke {hit.position} (jarak dari player: {actualDist:F1}m)");
+                    return;
+                }
+            }
+        }
+
+        // Fallback: Warp ke spawnPosition awal (posisi saat scene dimulai)
+        NavMeshHit spawnHit;
+        if (NavMesh.SamplePosition(spawnPosition, out spawnHit, 10f, NavMesh.AllAreas))
+        {
+            agent.Warp(spawnHit.position);
+            currentState = GhostState.Wandering;
+            ChooseNextWanderPoint();
+            Debug.Log($"[GhostAI] Fallback teleport ke spawnPosition awal: {spawnHit.position}");
+        }
+    }
+
+    private void UpdateAudio()
+    {
+        // Pindahkan posisi GameObject audio hantu agar menempel pada hantu jika tidak menjadi child
+        if (ghostSoundAudioSource != null && ghostSoundAudioSource.transform.parent != transform)
+        {
+            ghostSoundAudioSource.transform.position = transform.position;
+        }
+        if (screamAudioSource != null && screamAudioSource.transform.parent != transform)
+        {
+            screamAudioSource.transform.position = transform.position;
+        }
+        if (footstepAudioSource != null && footstepAudioSource.transform.parent != transform)
+        {
+            footstepAudioSource.transform.position = transform.position;
+        }
+
+        // 1. Fade Chase Music, Idle Music, & Ghost Passive Sound
+        bool isGhostRunning = (currentState == GhostState.Chasing) || 
+                               (currentState == GhostState.Investigating && currentInvestigateSpeed >= chaseSpeed - 0.5f);
+
+        if (chaseMusicAudioSource != null)
+        {
+            float targetVol = isGhostRunning ? 1.0f : 0f;
+            if (targetVol > 0f && !chaseMusicAudioSource.isPlaying)
+            {
+                chaseMusicAudioSource.volume = 0f;
+                chaseMusicAudioSource.Play();
             }
 
-            ambientAudioSource.volume = Mathf.MoveTowards(ambientAudioSource.volume, targetVol, Time.deltaTime * 1.5f);
+            chaseMusicAudioSource.volume = Mathf.MoveTowards(chaseMusicAudioSource.volume, targetVol, Time.deltaTime * 1.5f);
+
+            if (chaseMusicAudioSource.volume <= 0f && chaseMusicAudioSource.isPlaying)
+            {
+                chaseMusicAudioSource.Stop();
+            }
+        }
+
+        if (idleMusicAudioSource != null)
+        {
+            float targetVol = isGhostRunning ? 0f : 1.0f;
+            if (targetVol > 0f && !idleMusicAudioSource.isPlaying)
+            {
+                idleMusicAudioSource.volume = 0f;
+                idleMusicAudioSource.Play();
+            }
+
+            idleMusicAudioSource.volume = Mathf.MoveTowards(idleMusicAudioSource.volume, targetVol, Time.deltaTime * 1.5f);
+
+            if (idleMusicAudioSource.volume <= 0f && idleMusicAudioSource.isPlaying)
+            {
+                idleMusicAudioSource.Stop();
+            }
+        }
+
+        if (ghostSoundAudioSource != null)
+        {
+            float targetVol = 1.0f; // Default volume target
+
+            // 1. Raycast check for wall/floor/ceiling occlusion (starting from ghost chest/head level to avoid floor collision)
+            bool isOccluded = false;
+            if (player != null)
+            {
+                Vector3 startPos = transform.position + Vector3.up * 1.5f; // Raised to avoid floor collider intersection
+                Vector3 endPos = player.position + Vector3.up * 1.5f; // Player head level
+                Vector3 direction = endPos - startPos;
+                float distanceToPlayer = direction.magnitude;
+
+                if (distanceToPlayer > 0.5f)
+                {
+                    int layerMask = ~LayerMask.GetMask("Ignore Raycast", "UI", "Water");
+                    RaycastHit[] hits = Physics.RaycastAll(startPos, direction.normalized, distanceToPlayer, layerMask, QueryTriggerInteraction.Ignore);
+                    
+                    // Sort hits by distance
+                    System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+                    
+                    foreach (var hit in hits)
+                    {
+                        // Ignore the ghost's own colliders and child parts
+                        if (hit.collider.transform.root == transform.root || hit.collider.transform.IsChildOf(transform))
+                            continue;
+                            
+                        // Ignore trigger colliders
+                        if (hit.collider.isTrigger)
+                            continue;
+
+                        // Ignore player colliders and child parts
+                        if (hit.collider.CompareTag("Player") || hit.collider.transform.root == player.root || hit.collider.transform.IsChildOf(player))
+                        {
+                            // Hit player first, path is clear!
+                            break;
+                        }
+
+                        // If the first solid collider hit is NOT the player, it's a wall/door/obstacle
+                        isOccluded = true;
+                        break;
+                    }
+                }
+            }
+
+            // 2. Muffle/occlude sound using cached LowPass filter (2500Hz when occluded to let voice/whisper through clearly, 22000Hz normal)
+            if (ghostSoundLowPass != null)
+            {
+                float targetCutoff = isOccluded ? 2500f : 22000f;
+                ghostSoundLowPass.cutoffFrequency = Mathf.Lerp(ghostSoundLowPass.cutoffFrequency, targetCutoff, Time.deltaTime * 6f);
+            }
+
+            // Dim volume slightly by 20% (multiplier 0.8f) when behind walls to keep it highly audible
+            float occlusionVolumeMultiplier = isOccluded ? 0.8f : 1.0f;
+            targetVol *= occlusionVolumeMultiplier;
+
+            if (!ghostSoundAudioSource.isPlaying)
+            {
+                ghostSoundAudioSource.volume = 0f;
+                ghostSoundAudioSource.Play();
+            }
+
+            ghostSoundAudioSource.volume = Mathf.MoveTowards(ghostSoundAudioSource.volume, targetVol, Time.deltaTime * 1.5f);
         }
 
         // 2. Ghost Footstep Sounds

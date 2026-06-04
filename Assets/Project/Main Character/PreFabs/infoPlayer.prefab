@@ -579,10 +579,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 3186131428501437486}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 28a5d238b0467a044a2f2779426bb14f, type: 3}
+  m_Script: {fileID: 11500000, guid: cd7c73ba8fa45744a9e3a51201a03d55, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionUI
   interactionText: {fileID: 4394606366428174987}
+  textAnchorY: 0.15
 --- !u!1 &3238675392280489978
 GameObject:
   m_ObjectHideFlags: 0
@@ -888,7 +889,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 5766258348620774137}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a5651282f958b7d40882d08ee2490b91, type: 3}
+  m_Script: {fileID: 11500000, guid: 03a0461362e44f64b8b457867c669cc4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventoryUI
   slotIcons:
@@ -1081,10 +1082,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1262255056704182400}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 45, y: -15}
-  m_SizeDelta: {x: 200, y: 50}
+  m_AnchorMin: {x: 0.5, y: 0.15}
+  m_AnchorMax: {x: 0.5, y: 0.15}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 800, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &312541975900211992
 CanvasRenderer:

@@ -5,10 +5,55 @@ using TMPro; // Gunakan ini jika teks kamu menggunakan TextMeshPro
 public class InteractionUI : MonoBehaviour
 {
     private static InteractionUI _instance;
+
+    private static void CleanupDuplicates()
+    {
+        InteractionUI[] all = FindObjectsByType<InteractionUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        if (all.Length <= 1) return;
+
+        // Prefer keeping the original UI in the scene, not the dynamically created "InteractionUI_Canvas"
+        InteractionUI best = null;
+        foreach (var ui in all)
+        {
+            if (ui != null && ui.gameObject.name != "InteractionUI_Canvas")
+            {
+                best = ui;
+                break;
+            }
+        }
+
+        if (best == null)
+        {
+            foreach (var ui in all)
+            {
+                if (ui != null)
+                {
+                    best = ui;
+                    break;
+                }
+            }
+        }
+
+        if (best != null)
+        {
+            _instance = best;
+            foreach (var ui in all)
+            {
+                if (ui != null && ui != best)
+                {
+                    Debug.LogWarning($"[InteractionUI] Destroying duplicate InteractionUI component on GameObject: {ui.gameObject.name}");
+                    Destroy(ui.gameObject);
+                }
+            }
+        }
+    }
+
     public static InteractionUI Instance
     {
         get
         {
+            CleanupDuplicates();
+
             if (_instance == null)
             {
                 InteractionUI[] all = FindObjectsByType<InteractionUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -39,26 +84,16 @@ public class InteractionUI : MonoBehaviour
     [Header("UI Component")]
     [SerializeField] private TMP_Text interactionText;
 
+    [Header("UI Position Settings")]
+    [Tooltip("Anchor Y position (0 = bottom, 1 = top) for the interaction text.")]
+    [SerializeField] private float textAnchorY = 0.15f;
+
     void Awake()
     {
+        CleanupDuplicates();
         if (_instance == null)
         {
             _instance = this;
-        }
-        else if (_instance != this)
-        {
-            // Jika instance yang sudah ada adalah Canvas dinamis fallback, hancurkan fallback dan pakai Canvas asli ini
-            if (_instance.gameObject != null && _instance.gameObject.name == "InteractionUI_Canvas")
-            {
-                Debug.Log("<color=green>[InteractionUI]</color> Menemukan UI fallback dinamis. Menghapusnya untuk menggunakan Canvas asli.");
-                Destroy(_instance.gameObject);
-                _instance = this;
-            }
-            else
-            {
-                // Jika duplikat UI asli lainnya, hancurkan duplikat baru ini
-                Destroy(gameObject);
-            }
         }
     }
 
@@ -71,18 +106,46 @@ public class InteractionUI : MonoBehaviour
 
     private void EnsureInteractionText()
     {
-        if (interactionText != null) return;
+        if (interactionText == null)
+        {
+            // Coba cari di komponen anak (termasuk yang non-aktif) sebagai fallback
+            interactionText = GetComponentInChildren<TMP_Text>(true);
+            if (interactionText != null)
+            {
+                Debug.Log($"<color=green>[InteractionUI]</color> Berhasil memulihkan 'interactionText' dari child component: {interactionText.gameObject.name}");
+            }
+            else
+            {
+                // Jika benar-benar tidak ditemukan, kita buat secara dinamis sebagai child agar self-heal
+                Debug.LogWarning("<color=orange>[InteractionUI]</color> 'interactionText' tidak di-assign di Inspector dan tidak ditemukan di children! Membuat komponen 'InteractionText_Dynamic' baru secara otomatis.");
+                
+                GameObject textObj = new GameObject("InteractionText_Dynamic");
+                textObj.transform.SetParent(transform, false);
 
-        // Coba cari di komponen anak (termasuk yang non-aktif) sebagai fallback
-        interactionText = GetComponentInChildren<TMP_Text>(true);
+                TextMeshProUGUI tmpText = textObj.AddComponent<TextMeshProUGUI>();
+                interactionText = tmpText;
+            }
+        }
+
+        // Sekarang kita selalu pastikan style & posisinya konsisten di runtime
         if (interactionText != null)
         {
             interactionText.color = Color.red;
-            Debug.Log($"<color=green>[InteractionUI]</color> Berhasil memulihkan 'interactionText' dari child component: {interactionText.gameObject.name}");
-        }
-        else
-        {
-            Debug.LogError("<color=red>[InteractionUI]</color> 'interactionText' tidak di-assign di Inspector dan tidak ditemukan di children!");
+            interactionText.alignment = TextAlignmentOptions.Center;
+            
+            // Tambahkan outline agar teks terbaca jelas di berbagai background game
+            interactionText.outlineColor = Color.black;
+            interactionText.outlineWidth = 0.2f;
+
+            RectTransform rectTransform = interactionText.rectTransform;
+            if (rectTransform != null)
+            {
+                rectTransform.anchorMin = new Vector2(0.5f, textAnchorY);
+                rectTransform.anchorMax = new Vector2(0.5f, textAnchorY);
+                rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                rectTransform.anchoredPosition = Vector2.zero;
+                rectTransform.sizeDelta = new Vector2(1000, 100);
+            }
         }
     }
 
@@ -136,14 +199,15 @@ public class InteractionUI : MonoBehaviour
         tmpText.outlineWidth = 0.2f;
 
         RectTransform rectTransform = tmpText.rectTransform;
-        rectTransform.anchorMin = new Vector2(0.5f, 0.2f);
-        rectTransform.anchorMax = new Vector2(0.5f, 0.2f);
+        rectTransform.anchorMin = new Vector2(0.5f, 0.15f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.15f);
         rectTransform.pivot = new Vector2(0.5f, 0.5f);
         rectTransform.anchoredPosition = Vector2.zero;
         rectTransform.sizeDelta = new Vector2(1000, 100);
 
         // Add InteractionUI component
         InteractionUI newUI = canvasObj.AddComponent<InteractionUI>();
+        newUI.textAnchorY = 0.15f;
         newUI.interactionText = tmpText;
 
         DontDestroyOnLoad(canvasObj);
