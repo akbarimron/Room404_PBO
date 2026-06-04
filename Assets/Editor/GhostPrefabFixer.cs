@@ -10,6 +10,11 @@ public static class GhostPrefabFixer
         EditorApplication.delayCall += () => {
             ConfigureAnimationLoops();
             ResetOverrides();
+            FixDoorAndLockerAudio();
+        };
+
+        UnityEditor.SceneManagement.EditorSceneManager.sceneOpened += (scene, mode) => {
+            FixDoorAndLockerAudio();
         };
     }
 
@@ -118,6 +123,85 @@ public static class GhostPrefabFixer
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(prefabRoot.scene);
             UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
             Debug.Log($"[GhostPrefabFixer] Successfully reverted {revertedCount} bone/mesh overrides on the ghost prefab in the scene.");
+        }
+    }
+
+    [MenuItem("Tools/Fix Door and Locker Audio")]
+    public static void FixDoorAndLockerAudio()
+    {
+        // 1. Cari file openDoor.mp3
+        AudioClip doorClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/openDoor.mp3");
+        if (doorClip == null)
+        {
+            Debug.LogError("[GhostPrefabFixer] Could not find Assets/NewAssets/SFX/openDoor.mp3! Audio fix aborted.");
+            return;
+        }
+
+        bool modified = false;
+
+        // 2. Cari semua InteractiveDoor di scene aktif
+        InteractiveDoor[] doors = Object.FindObjectsByType<InteractiveDoor>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        foreach (var door in doors)
+        {
+            SerializedObject so = new SerializedObject(door);
+            SerializedProperty openSoundProp = so.FindProperty("openSound");
+            SerializedProperty closeSoundProp = so.FindProperty("closeSound");
+
+            bool doorModified = false;
+            if (openSoundProp.objectReferenceValue == null)
+            {
+                openSoundProp.objectReferenceValue = doorClip;
+                doorModified = true;
+            }
+            if (closeSoundProp.objectReferenceValue == null)
+            {
+                closeSoundProp.objectReferenceValue = doorClip;
+                doorModified = true;
+            }
+
+            if (doorModified)
+            {
+                so.ApplyModifiedProperties();
+                EditorUtility.SetDirty(door);
+                modified = true;
+                Debug.Log($"[GhostPrefabFixer] Assigned fallback door audio to: {door.gameObject.name}");
+            }
+        }
+
+        // 3. Cari semua LockerController di scene aktif
+        LockerController[] lockers = Object.FindObjectsByType<LockerController>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        foreach (var locker in lockers)
+        {
+            SerializedObject so = new SerializedObject(locker);
+            SerializedProperty enterSoundProp = so.FindProperty("enterSound");
+            SerializedProperty exitSoundProp = so.FindProperty("exitSound");
+
+            bool lockerModified = false;
+            if (enterSoundProp.objectReferenceValue == null)
+            {
+                enterSoundProp.objectReferenceValue = doorClip;
+                lockerModified = true;
+            }
+            if (exitSoundProp.objectReferenceValue == null)
+            {
+                exitSoundProp.objectReferenceValue = doorClip;
+                lockerModified = true;
+            }
+
+            if (lockerModified)
+            {
+                so.ApplyModifiedProperties();
+                EditorUtility.SetDirty(locker);
+                modified = true;
+                Debug.Log($"[GhostPrefabFixer] Assigned fallback locker audio to: {locker.gameObject.name}");
+            }
+        }
+
+        if (modified)
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+            Debug.Log("[GhostPrefabFixer] Successfully saved door & locker audio changes to scene.");
         }
     }
 }

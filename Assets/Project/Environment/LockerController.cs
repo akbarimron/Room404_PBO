@@ -15,6 +15,11 @@ public class LockerController : MonoBehaviour
     [Header("Hiding Settings")]
     [SerializeField] private float transitionSpeed = 5f;
 
+    [Header("Audio Settings")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip enterSound;
+    [SerializeField] private AudioClip exitSound;
+
     private bool isOccupied = false;
     private GameObject hidingPlayer;
     private bool isTransitioning = false;
@@ -28,6 +33,47 @@ public class LockerController : MonoBehaviour
         {
             StartCoroutine(ExitLocker());
         }
+    }
+
+    void Awake()
+    {
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+
+        if (audioSource != null)
+        {
+            audioSource.spatialBlend = 1.0f; // 3D sound
+            audioSource.playOnAwake = false;
+            audioSource.minDistance = 3.0f;  // Audibility setup
+            audioSource.maxDistance = 20.0f;
+            audioSource.rolloffMode = AudioRolloffMode.Linear;
+            audioSource.volume = 1.0f;
+        }
+
+#if UNITY_EDITOR
+        if (enterSound == null)
+        {
+            enterSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/openDoor.mp3");
+            if (enterSound != null)
+            {
+                Debug.Log($"<color=green>[LockerController]</color> Loaded fallback enterSound dynamically: {enterSound.name}");
+            }
+        }
+        if (exitSound == null)
+        {
+            exitSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/NewAssets/SFX/openDoor.mp3");
+            if (exitSound != null)
+            {
+                Debug.Log($"<color=green>[LockerController]</color> Loaded fallback exitSound dynamically: {exitSound.name}");
+            }
+        }
+#endif
     }
 
     void Update()
@@ -61,6 +107,30 @@ public class LockerController : MonoBehaviour
         isTransitioning = true;
         hidingPlayer = player;
         isOccupied = true;
+
+        if (InteractionUI.Instance != null)
+        {
+            InteractionUI.Instance.HideText();
+        }
+
+        if (audioSource != null && enterSound != null)
+        {
+            audioSource.clip = enterSound;
+            if (enterSound.name == "openDoor" || enterSound.name == "openDoor_trimmed")
+            {
+                audioSource.time = 3.138f;
+            }
+            else
+            {
+                audioSource.time = 0f;
+            }
+            audioSource.Play();
+            Debug.Log($"<color=green>[LockerController-Audio]</color> Played enterSound: {enterSound.name} on {gameObject.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"<color=yellow>[LockerController-Audio]</color> enterSound is null on {gameObject.name}");
+        }
 
         // Set hiding state on PlayerHealth
         PlayerHealth health = player.GetComponent<PlayerHealth>();
@@ -127,6 +197,25 @@ public class LockerController : MonoBehaviour
         if (hidingPlayer == null) yield break;
 
         isTransitioning = true;
+
+        if (audioSource != null && exitSound != null)
+        {
+            audioSource.clip = exitSound;
+            if (exitSound.name == "openDoor" || exitSound.name == "openDoor_trimmed")
+            {
+                audioSource.time = 3.138f;
+            }
+            else
+            {
+                audioSource.time = 0f;
+            }
+            audioSource.Play();
+            Debug.Log($"<color=green>[LockerController-Audio]</color> Played exitSound: {exitSound.name} on {gameObject.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"<color=yellow>[LockerController-Audio]</color> exitSound is null on {gameObject.name}");
+        }
 
         // Restore tag and hiding state immediately at the start of exit
         hidingPlayer.tag = "Player";

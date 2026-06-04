@@ -72,6 +72,7 @@ public class PlayerInteraction : MonoBehaviour
                 {
                     if (pm != null)
                     {
+                        HideInteractionText();
                         currentLocker.ToggleHiding(pm.gameObject);
                     }
                 }
