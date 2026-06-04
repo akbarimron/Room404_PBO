@@ -1,8 +1,17 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using System.Collections;
 
 public class PlayerHealth : MonoBehaviour
 {
+    [Header("Health Settings")]
+    [SerializeField] private int maxHealth = 3;
+
+    [Header("Respawn Settings")]
+    [SerializeField] private Vector3 spawnPoint = new Vector3(28.5f, 0.36f, -27.78f);
+    [SerializeField] private bool useStartPositionAsSpawn = false;
+
     [SerializeField] private string deathSceneName = "deathScene";
 
     [Header("Death Count Settings")]
@@ -13,6 +22,10 @@ public class PlayerHealth : MonoBehaviour
 
     // Persistent death counter — bertahan antar respawn selama sesi game
     private static int totalDeathCount = 0;
+    private int currentHealth;
+    private bool isDead = false;
+
+    [HideInInspector] public bool isHiding = false;
 
     [Header("UI Reference")]
     public Image[] hearts;
@@ -27,6 +40,10 @@ public class PlayerHealth : MonoBehaviour
 
     void Start()
     {
+        currentHealth = Mathf.Max(1, maxHealth);
+        if (useStartPositionAsSpawn)
+            spawnPoint = transform.position;
+
         controller = GetComponent<CharacterController>();
         playerMovement = GetComponent<PlayerMovement>();
         cameraShake = GetComponentInChildren<CameraShake>();
@@ -58,7 +75,13 @@ public class PlayerHealth : MonoBehaviour
     public void TakeDamage(int damage)
     {
         if (isDead) return;
-        Die();
+
+        currentHealth -= Mathf.Max(1, damage);
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+        UpdateHealthUI();
+
+        if (currentHealth <= 0)
+            Die();
     }
 
     void UpdateHealthUI()

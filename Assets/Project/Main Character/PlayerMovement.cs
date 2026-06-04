@@ -186,12 +186,10 @@ public class PlayerMovement : MonoBehaviour
         if (staminaBar == null)
             return;
 
-        // Mengisi slider (0 sampai 1)
         staminaBar.value = currentStamina / maxStamina;
 
         if (staminaBar.fillRect != null)
         {
-            // Opsional: Ubah warna bar jadi merah kalau habis (Exhausted)
             Image fillImage = staminaBar.fillRect.GetComponent<Image>();
             if (fillImage != null)
                 fillImage.color = isExhausted ? Color.red : Color.green;
